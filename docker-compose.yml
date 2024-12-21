@@ -1,0 +1,12 @@
+services:
+  openvpn-arm:
+    image: openvpn-arm
+    container_name: openvpn-arm
+    restart: unless-stopped
+    privileged: true 
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ${DOCKER_CONTAINERS}/PiHouse/openVPN/server.conf:/etc/openvpn/server.conf
+      - ${DOCKER_DATAS}/openvpn-data:/etc/openvpn

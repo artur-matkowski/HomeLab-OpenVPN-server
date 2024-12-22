@@ -9,6 +9,7 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
+    privileged: true 
     environment:
       - OPENVPN_PORT=443
       - OPENVPN_PROTO=udp
@@ -39,6 +40,7 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
+    privileged: true 
     environment:
       - OPENVPN_PORT=8443
       - OPENVPN_PROTO=udp

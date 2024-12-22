@@ -58,10 +58,10 @@ if [ ! -f "/etc/openvpn/server.conf" ]; then
 port $OPENVPN_PORT
 proto $OPENVPN_PROTO
 dev tun
-ca /etc/openvpn/ca.crt
-cert /etc/openvpn/${OPENVPN_SERVER_NAME}.crt
-key /etc/openvpn/${OPENVPN_SERVER_NAME}.key
-dh /etc/openvpn/dh.pem
+ca /etc/openvpn/pki/ca.crt
+cert /etc/openvpn/pki/issued/${OPENVPN_SERVER_NAME}.crt
+key /etc/openvpn/pki/private/${OPENVPN_SERVER_NAME}.key
+dh /etc/openvpn/pki/dh.pem
 auth SHA256
 tls-auth /etc/openvpn/ta.key 0
 topology subnet

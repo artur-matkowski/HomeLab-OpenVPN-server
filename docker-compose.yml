@@ -1,12 +1,58 @@
+version: "3"
+
 services:
-  openvpn-arm:
-    image: openvpn-arm
-    container_name: openvpn-arm
-    restart: unless-stopped
-    privileged: true 
+  openvpn-primary:
+    image: arturmatkowski/openvpn-arm:latest
+    container_name: openvpn-primary
+    # We'll run privileged with net=host, so that the container can directly bind to host's IP & port
     network_mode: "host"
     cap_add:
       - NET_ADMIN
+    restart: unless-stopped
+    environment:
+      - OPENVPN_PORT=443
+      - OPENVPN_PROTO=udp
+      - OPENVPN_SERVER_NAME=server
+      - OPENVPN_COUNTRY=US
+      - OPENVPN_PROVINCE=State
+      - OPENVPN_CITY=City
+      - OPENVPN_ORG=MyVPN
+      - OPENVPN_EMAIL=admin@example.com
+      - OPENVPN_OU=MyVPN_Unit
+      - OPENVPN_HOSTNAME=myDomain.com
+      - OPENVPN_NETWORK=192.168.33.0
+      - OPENVPN_NETMASK=255.255.255.0
+      - OPENVPN_HOST_NETWORK=192.168.1.0
+      - OPENVPN_HOST_NETMASK=255.255.255.0
     volumes:
-      - ${DOCKER_CONTAINERS}/PiHouse/openVPN/server.conf:/etc/openvpn/server.conf
-      - ${DOCKER_DATAS}/openvpn-data:/etc/openvpn
+      # The shared data that is synced between nodes
+      - /home/pi/syncthing/openvpn:/etc/openvpn
+      # If you want a local volume for openvpn logs or overrides, you could do:
+      # - /home/pi/docker/openvpn/logs-primary:/etc/openvpn/logs
+    # If you rely on Keepalived for floating IP, you can also use it here
+    # If you want to just bind to the Pi’s IP, net=host is enough.
+
+  openvpn-secondary:
+    image: arturmatkowski/openvpn-arm:latest
+    container_name: openvpn-secondary
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    environment:
+      - OPENVPN_PORT=8443
+      - OPENVPN_PROTO=udp
+      - OPENVPN_SERVER_NAME=server
+      - OPENVPN_COUNTRY=US
+      - OPENVPN_PROVINCE=State
+      - OPENVPN_CITY=City
+      - OPENVPN_ORG=MyVPN
+      - OPENVPN_EMAIL=admin@example.com
+      - OPENVPN_OU=MyVPN_Unit
+      - OPENVPN_HOSTNAME=myDomain.com
+      - OPENVPN_NETWORK=192.168.34.0
+      - OPENVPN_NETMASK=255.255.255.0
+      - OPENVPN_HOST_NETWORK=192.168.1.0
+      - OPENVPN_HOST_NETMASK=255.255.255.0
+    volumes:
+      - /home/pi/syncthing/openvpn:/etc/openvpn

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker build -t openvpn-arm .
+docker build -t arturmatkowski/openvpn-arm:latest .

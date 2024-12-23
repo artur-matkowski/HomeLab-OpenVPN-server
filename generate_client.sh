@@ -64,7 +64,7 @@ verb 3
 pull-filter ignore "redirect-gateway"
 
 <ca>
-$(cat /etc/openvpn/ca.crt)
+$(cat /etc/openvpn/pki/ca.crt)
 </ca>
 <cert>
 $(cat /etc/openvpn/pki/issued/${CLIENT}.crt)

@@ -11,6 +11,8 @@ set -x  # Enable verbose logging for debugging
 : "${OPENVPN_NETMASK:=255.255.255.0}"
 : "${OPENVPN_HOST_NETWORK:=192.168.1.0}"
 : "${OPENVPN_HOST_NETMASK:=255.255.255.0}"
+: "${HOME_DOMAIN:=myDomain}"
+: "${HOME_DNS:=192.168.1.207}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
 : "${OPENVPN_COUNTRY:=US}"
 : "${OPENVPN_PROVINCE:=State}"
@@ -68,6 +70,8 @@ topology subnet
 server $OPENVPN_NETWORK $OPENVPN_NETMASK
 ifconfig-pool-persist ipp.txt
 push "route ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}"
+push "dhcp-option DNS ${HOME_DNS}"
+push "dhcp-option DOMAIN ${HOME_DOMAIN}"
 keepalive 10 120
 cipher AES-256-CBC
 user nobody

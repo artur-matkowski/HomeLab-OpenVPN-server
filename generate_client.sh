@@ -5,10 +5,10 @@ set -x  # Enable verbose logging for debugging
 
 # Optional environment variables with defaults
 : "${OPENVPN_PROTO:=udp}"
-: "${OPENVPN_HOSTNAME:=myDomain.com}"   # Primary server domain
-: "${OPENVPN_PORT:=1194}"
-: "${OPENVPN_HOSTNAME2:=backupDomain.com}"  # Backup domain (optional)
-: "${OPENVPN_PORT2:=1194}"             # Possibly the same or different port
+: "${OPENVPN_PRIMARY_SERVER_HOSTNAME:=myDomain.com}"   # Primary server domain
+: "${OPENVPN_PRIMARY_SERVER_PORT:=1194}"
+: "${OPENVPN_BACKUP_SERVER_HOSTNAME:=backupDomain.com}"  # Backup domain (optional)
+: "${OPENVPN_BACKUP_SERVER_PORT:=1194}"             # Possibly the same or different port
 
 CLIENT=$1
 if [ -z "$CLIENT" ]; then
@@ -48,10 +48,10 @@ dev tun
 proto $OPENVPN_PROTO
 
 # Primary server
-remote $OPENVPN_HOSTNAME $OPENVPN_PORT
+remote $OPENVPN_PRIMARY_SERVER_HOSTNAME $OPENVPN_PRIMARY_SERVER_PORT
 
 # (Optional) Secondary/backup server
-remote $OPENVPN_HOSTNAME2 $OPENVPN_PORT2
+remote $OPENVPN_BACKUP_SERVER_HOSTNAME $OPENVPN_BACKUP_SERVER_PORT
 
 resolv-retry infinite
 nobind

@@ -10,6 +10,8 @@ services:
       - NET_ADMIN
     restart: unless-stopped
     privileged: true 
+    tty: true
+    stdin_open: true
     environment:
       - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
       - OPENVPN_PRIMARY_SERVER_PORT=1194
@@ -20,9 +22,9 @@ services:
       - HOME_DNS=192.168.1.207
       - OPENVPN_PROTO=udp
       - OPENVPN_SERVER_NAME=server
-      #- OPENVPN_COUNTRY=US
-      #- OPENVPN_PROVINCE=State
-      #- OPENVPN_CITY=City
+      - OPENVPN_COUNTRY=US
+      - OPENVPN_PROVINCE=State
+      - OPENVPN_CITY=City
       - OPENVPN_ORG=MyVPN
       - OPENVPN_EMAIL=admin@example.com
       - OPENVPN_OU=MyVPN_Unit
@@ -46,6 +48,8 @@ services:
       - NET_ADMIN
     restart: unless-stopped
     privileged: true 
+    tty: true
+    stdin_open: true
     environment:      
       - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
       - OPENVPN_PRIMARY_SERVER_PORT=1194
@@ -56,9 +60,9 @@ services:
       - HOME_DNS=192.168.1.206
       - OPENVPN_PROTO=udp
       - OPENVPN_SERVER_NAME=server
-      #- OPENVPN_COUNTRY=US
-      #- OPENVPN_PROVINCE=State
-      #- OPENVPN_CITY=City
+      - OPENVPN_COUNTRY=US
+      - OPENVPN_PROVINCE=State
+      - OPENVPN_CITY=City
       - OPENVPN_ORG=MyVPN
       - OPENVPN_EMAIL=admin@example.com
       - OPENVPN_OU=MyVPN_Unit

@@ -5,7 +5,6 @@ set -x  # Enable verbose logging for debugging
 
 
 # Optional environment variables with defaults
-: "${OPENVPN_PORT:=${THIS_SERVER_LISTENING_PORT}}"
 : "${OPENVPN_PROTO:=udp}"
 : "${OPENVPN_SERVER_NAME:=server}"
 : "${OPENVPN_NETWORK:=192.168.33.0}"
@@ -58,7 +57,7 @@ fi
 # Generate server.conf if it doesn't exist yet 
 if [ ! -f "/etc/openvpn/server.conf" ]; then
     cat > /etc/openvpn/server.conf <<EOF
-port $OPENVPN_PORT
+port $THIS_SERVER_LISTENING_PORT
 proto $OPENVPN_PROTO
 dev tun
 ca /etc/openvpn/pki/ca.crt

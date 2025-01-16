@@ -5,7 +5,7 @@ set -x  # Enable verbose logging for debugging
 
 
 # Optional environment variables with defaults
-: "${OPENVPN_PORT:=1194}"
+: "${OPENVPN_PORT:=${THIS_SERVER_LISTENING_PORT}}"
 : "${OPENVPN_PROTO:=udp}"
 : "${OPENVPN_SERVER_NAME:=server}"
 : "${OPENVPN_NETWORK:=192.168.33.0}"
@@ -13,7 +13,6 @@ set -x  # Enable verbose logging for debugging
 : "${OPENVPN_HOST_NETWORK:=192.168.1.0}"
 : "${OPENVPN_HOST_NETMASK:=255.255.255.0}"
 : "${INTERNAL_DOMAIN:=internal.net}"
-: "${THIS_SERVER_LISTENING_PORT:=1194}"
 : "${HOME_DNS:=192.168.1.207}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
 : "${OPENVPN_COUNTRY:=US}"

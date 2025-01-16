@@ -3,7 +3,6 @@
 set -e
 set -x  # Enable verbose logging for debugging
 
-response=$(curl -s https://ipinfo.io)
 
 # Optional environment variables with defaults
 : "${OPENVPN_PORT:=1194}"

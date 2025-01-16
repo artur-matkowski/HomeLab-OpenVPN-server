@@ -14,15 +14,15 @@ services:
       - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
       - OPENVPN_PRIMARY_SERVER_PORT=1194
       - OPENVPN_BACKUP_SERVER_HOSTNAME=myDomain.com
-      - OPENVPN_BACKUP_SERVER_PORT=1194
+      - OPENVPN_BACKUP_SERVER_PORT=8194
       - INTERNAL_DOMAIN=myDomain
       - THIS_SERVER_LISTENING_PORT=1994
-      - HOME_DNS=192.168.33.1
+      - HOME_DNS=192.168.1.207
       - OPENVPN_PROTO=udp
       - OPENVPN_SERVER_NAME=server
-      - OPENVPN_COUNTRY=US
-      - OPENVPN_PROVINCE=State
-      - OPENVPN_CITY=City
+      #- OPENVPN_COUNTRY=US
+      #- OPENVPN_PROVINCE=State
+      #- OPENVPN_CITY=City
       - OPENVPN_ORG=MyVPN
       - OPENVPN_EMAIL=admin@example.com
       - OPENVPN_OU=MyVPN_Unit
@@ -47,20 +47,21 @@ services:
     restart: unless-stopped
     privileged: true 
     environment:      
-      - OPENVPN_BACKUP_SERVER_PORT=1194
+      - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
+      - OPENVPN_PRIMARY_SERVER_PORT=1194
+      - OPENVPN_BACKUP_SERVER_HOSTNAME=myDomain.com
+      - OPENVPN_BACKUP_SERVER_PORT=8194
       - INTERNAL_DOMAIN=myDomain
-      - THIS_SERVER_LISTENING_PORT=1994
-      - HOME_DNS=192.168.34.1
-      - OPENVPN_PORT=8443
+      - THIS_SERVER_LISTENING_PORT=8194
+      - HOME_DNS=192.168.1.206
       - OPENVPN_PROTO=udp
       - OPENVPN_SERVER_NAME=server
-      - OPENVPN_COUNTRY=US
-      - OPENVPN_PROVINCE=State
-      - OPENVPN_CITY=City
+      #- OPENVPN_COUNTRY=US
+      #- OPENVPN_PROVINCE=State
+      #- OPENVPN_CITY=City
       - OPENVPN_ORG=MyVPN
       - OPENVPN_EMAIL=admin@example.com
       - OPENVPN_OU=MyVPN_Unit
-      - OPENVPN_HOSTNAME=myDomain.com
       - OPENVPN_NETWORK=192.168.34.0
       - OPENVPN_NETMASK=255.255.255.0
       - OPENVPN_HOST_NETWORK=192.168.1.0

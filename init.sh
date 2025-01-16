@@ -3,6 +3,8 @@
 set -e
 set -x  # Enable verbose logging for debugging
 
+response=$(curl -s https://ipinfo.io)
+
 # Optional environment variables with defaults
 : "${OPENVPN_PORT:=1194}"
 : "${OPENVPN_PROTO:=udp}"
@@ -15,9 +17,9 @@ set -x  # Enable verbose logging for debugging
 : "${THIS_SERVER_LISTENING_PORT:=1194}"
 : "${HOME_DNS:=192.168.1.207}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
-: "${OPENVPN_COUNTRY:=US}"
-: "${OPENVPN_PROVINCE:=State}"
-: "${OPENVPN_CITY:=City}"
+OPENVPN_COUNTRY="${OPENVPN_COUNTRY:-$(echo "$response" | jq -r '.country')}"
+OPENVPN_PROVINCE="${OPENVPN_PROVINCE:-$(echo "$response" | jq -r '.region')}"
+OPENVPN_CITY="${OPENVPN_CITY:-$(echo "$response" | jq -r '.city')}"
 : "${OPENVPN_ORG:=MyVPN Org}"
 : "${OPENVPN_EMAIL:=admin@example.com}"
 : "${OPENVPN_OU:=MyVPN Unit}"

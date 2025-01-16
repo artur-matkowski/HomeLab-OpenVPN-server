@@ -13,6 +13,8 @@ services:
     tty: true
     stdin_open: true
     environment:
+      - PUID=1001
+      - PGID=100
       - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
       - OPENVPN_PRIMARY_SERVER_PORT=1194
       - OPENVPN_BACKUP_SERVER_HOSTNAME=myDomain.com
@@ -50,7 +52,9 @@ services:
     privileged: true 
     tty: true
     stdin_open: true
-    environment:      
+    environment:   
+      - PUID=1001
+      - PGID=100   
       - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
       - OPENVPN_PRIMARY_SERVER_PORT=1194
       - OPENVPN_BACKUP_SERVER_HOSTNAME=myDomain.com

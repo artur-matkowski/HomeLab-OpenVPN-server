@@ -9,13 +9,10 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
-    #privileged: true 
-    devices: /dev/net/tun
+    privileged: true 
     tty: true
     stdin_open: true
     environment:
-      - PUID=1001
-      - PGID=100
       - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
       - OPENVPN_PRIMARY_SERVER_PORT=8194
       - OPENVPN_BACKUP_SERVER_HOSTNAME=myDomain.com
@@ -50,13 +47,10 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
-    #privileged: true 
-    devices: /dev/net/tun
+    privileged: true 
     tty: true
     stdin_open: true
-    environment:   
-      - PUID=1001
-      - PGID=100   
+    environment:
       - OPENVPN_PRIMARY_SERVER_HOSTNAME=myDomain.com
       - OPENVPN_PRIMARY_SERVER_PORT=8194
       - OPENVPN_BACKUP_SERVER_HOSTNAME=myDomain.com

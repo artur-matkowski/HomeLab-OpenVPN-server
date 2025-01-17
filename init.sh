@@ -84,7 +84,7 @@ explicit-exit-notify 1
 EOF
 fi
 
-chmod +r -R /etc/openvpn/*
+chown -r 1001:100 /etc/openvpn/*
 
 # Run OpenVPN
 exec openvpn --config /etc/openvpn/server.conf

@@ -1,7 +1,6 @@
 # Use an ARM64 Ubuntu base image
 FROM arm64v8/ubuntu:22.04
 
-RUN adduser --disabled-password --gecos "" --uid 1001 --gid 100 openvpn
 
 # Install necessary packages
 RUN apt-get update && \
@@ -28,7 +27,6 @@ COPY generate_client.sh /usr/local/bin/generate_client.sh
 RUN chmod +x /init.sh /usr/local/bin/generate_client.sh
 
 RUN chown -R 1001:100 /etc/openvpn
-USER openvpn
 
 # Set the entrypoint
 ENTRYPOINT ["/init.sh"]

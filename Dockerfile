@@ -27,7 +27,7 @@ COPY generate_client.sh /usr/local/bin/generate_client.sh
 # Make scripts executable
 RUN chmod +x /init.sh /usr/local/bin/generate_client.sh
 
-RUN chown -R openvpn:openvpn /etc/openvpn
+RUN chown -R 1001:100 /etc/openvpn
 USER openvpn
 
 # Set the entrypoint

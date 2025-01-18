@@ -5,3 +5,8 @@ Deployment:
 3a) syncthing should now copy configuration to remote machine
 4) Confirm that configuration files on machine B have the same ownership
 5) deploy to machine B
+
+Note:
+1) some files have to be ignored during synchronization:
+- server.conf
+- openvpn-status.log

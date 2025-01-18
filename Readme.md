@@ -10,3 +10,11 @@ Note:
 1) some files have to be ignored during synchronization:
 - server.conf
 - openvpn-status.log
+
+2) How to Fix It in KDE (Plasma) NetworkManager
+- Open System Settings → Network (or Connections).
+- Find your VPN connection and Edit it.
+- Go to the IPv4 or IPv6 tab (depending on which you use).
+- Click the “Routes…” button to see advanced route options.
+- Check or uncheck any boxes that say:
+   * “Use only for resources on its network” (This might have different wording depending on KDE version.)

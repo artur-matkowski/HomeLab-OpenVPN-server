@@ -80,3 +80,5 @@ key-direction 1
 EOF
 
 echo "Client config created: /etc/openvpn/clients/${CLIENT}.ovpn"
+
+chown -R 1001:100 /etc/openvpn/*

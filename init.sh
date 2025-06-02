@@ -55,6 +55,8 @@ if [ ! -f "/etc/openvpn/pki/ca.crt" ]; then
     cp /etc/openvpn/ta.key /etc/openvpn/
 fi
 
+mkdir -p /etc/openvpn/server-list
+
 cat > /etc/openvpn/server-list/server-${SERVER_FALLBACK_PRIORITY}.txt <<EOF
 $SERVER_ADDRESS $SERVER_LISTENING_PORT
 EOF

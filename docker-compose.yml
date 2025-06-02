@@ -21,7 +21,7 @@ services:
       - OPENVPN_BACKUP_SERVER_PORT=8443
       - INTERNAL_DOMAIN=myDomain
       - THIS_SERVER_LISTENING_PORT=8194
-      - HOME_DNS=192.168.1.207
+      - HOME_DNS=192.168.74.200
       - OPENVPN_PROTO=udp
       - OPENVPN_SERVER_NAME=server
       - OPENVPN_COUNTRY=US
@@ -30,9 +30,9 @@ services:
       - OPENVPN_ORG=MyVPN
       - OPENVPN_EMAIL=admin@example.com
       - OPENVPN_OU=MyVPN_Unit
-      - OPENVPN_NETWORK=192.168.33.0
+      - OPENVPN_NETWORK=192.168.200.0
       - OPENVPN_NETMASK=255.255.255.0
-      - OPENVPN_HOST_NETWORK=192.168.1.0
+      - OPENVPN_HOST_NETWORK=192.168.74.0
       - OPENVPN_HOST_NETMASK=255.255.255.0
     volumes:
       # The shared data that is synced between nodes
@@ -61,7 +61,7 @@ services:
       - OPENVPN_BACKUP_SERVER_PORT=8443
       - INTERNAL_DOMAIN=myDomain
       - THIS_SERVER_LISTENING_PORT=8443
-      - HOME_DNS=192.168.1.206
+      - HOME_DNS=192.168.74.206
       - OPENVPN_PROTO=udp
       - OPENVPN_SERVER_NAME=server
       - OPENVPN_COUNTRY=US
@@ -70,9 +70,9 @@ services:
       - OPENVPN_ORG=MyVPN
       - OPENVPN_EMAIL=admin@example.com
       - OPENVPN_OU=MyVPN_Unit
-      - OPENVPN_NETWORK=192.168.34.0
+      - OPENVPN_NETWORK=192.168.206.0
       - OPENVPN_NETMASK=255.255.255.0
-      - OPENVPN_HOST_NETWORK=192.168.1.0
+      - OPENVPN_HOST_NETWORK=192.168.74.0
       - OPENVPN_HOST_NETMASK=255.255.255.0
     volumes:
       - /home/pi/syncthing/openvpn:/etc/openvpn

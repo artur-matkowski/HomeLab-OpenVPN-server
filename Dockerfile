@@ -19,7 +19,7 @@ ENV EASYRSA_PKI=/etc/openvpn/pki
 RUN mkdir -p /etc/openvpn/pki && \
     ln -s /usr/share/easy-rsa /etc/openvpn/easy-rsa
 
-RUN -p /etc/openvpn/server-list
+RUN mkdir -p /etc/openvpn/server-list
 
 # Copy initialization scripts (we'll create these next)
 COPY init.sh /init.sh

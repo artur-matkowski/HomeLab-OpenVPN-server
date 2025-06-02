@@ -56,7 +56,7 @@ if compgen -G "${SERVER_LIST_DIR}/server-*.txt" >/dev/null; then
         # Each line in the file should be: "<address> <port>"
         while read -r ADDR PORT _; do
             [[ -z "$ADDR" || -z "$PORT" ]] && continue   # skip empty or malformed
-            REMOTE_LINES+="remote ${ADDR} ${PORT}\n"
+            REMOTE_LINES+=("remote ${ADDR} ${PORT}")
         done < "$FILE"
     done
 else

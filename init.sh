@@ -55,6 +55,10 @@ if [ ! -f "/etc/openvpn/pki/ca.crt" ]; then
     cp /etc/openvpn/ta.key /etc/openvpn/
 fi
 
+cat > /etc/openvpn/server-list/server-${SERVER_FALLBACK_PRIORITY}.txt <<EOF
+$SERVER_ADDRESS $SERVER_LISTENING_PORT
+EOF
+
 # Generate server.conf if it doesn't exist yet 
 # or do it always, to respect environment variables
 #if [ ! -f "/etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf" ]; then

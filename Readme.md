@@ -18,3 +18,7 @@ Note:
 - Click the “Routes…” button to see advanced route options.
 - Check or uncheck any boxes that say:
    * “Use only for resources on its network” (This might have different wording depending on KDE version.)
+
+
+   TODO:
+   - after cleaning env, generate client no longer has adresses of all servers. all instances have to create a file with server adress, in clientDir, and when cient cert is created, that dir has to be scanned for all 'registered' servers

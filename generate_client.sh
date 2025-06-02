@@ -1,22 +1,25 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
+#
+# generate_client.sh  –  create a client certificate and .ovpn profile
+#                       Server addresses come from /etc/openvpn/server-list/server-*.txt
+#                       (lower number = higher priority)
+#
 set -e
-set -x  # Enable verbose logging for debugging
+set -x                                      # verbose for debugging
 
-# Optional environment variables with defaults
-: "${OPENVPN_PROTO:=udp}"
-: "${OPENVPN_PRIMARY_SERVER_HOSTNAME:=myDomain.com}"   # Primary server domain
-: "${OPENVPN_PRIMARY_SERVER_PORT:=1194}"
-: "${OPENVPN_BACKUP_SERVER_HOSTNAME:=backupDomain.com}"  # Backup domain (optional)
-: "${OPENVPN_BACKUP_SERVER_PORT:=1194}"             # Possibly the same or different port
-
-CLIENT=$1
-if [ -z "$CLIENT" ]; then
-    echo "Usage: generate_client.sh <client_name>"
+###############################################################################
+# 1.  Parse CLI
+###############################################################################
+CLIENT=${1:-}
+if [[ -z "$CLIENT" ]]; then
+    echo "Usage: $0 <client_name>"
     exit 1
 fi
 
-# If you want to re-use the same environment variables from init.sh:
+###############################################################################
+# 2.  (Optional) certificate-request defaults
+###############################################################################
+: "${OPENVPN_PROTO:=udp}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
 : "${OPENVPN_COUNTRY:=US}"
 : "${OPENVPN_PROVINCE:=State}"
@@ -25,7 +28,9 @@ fi
 : "${OPENVPN_EMAIL:=admin@example.com}"
 : "${OPENVPN_OU:=MyVPN Unit}"
 
-# Build client cert
+###############################################################################
+# 3.  Build client certificate
+###############################################################################
 cd /etc/openvpn/easy-rsa
 
 export EASYRSA_BATCH=1
@@ -39,28 +44,49 @@ export EASYRSA_REQ_OU="$OPENVPN_OU"
 
 ./easyrsa build-client-full "$CLIENT" nopass
 
-# Create client config
-mkdir -p /etc/openvpn/clients
+###############################################################################
+# 4.  Assemble list of remote servers
+###############################################################################
+REMOTE_LINES=""
+SERVER_LIST_DIR="/etc/openvpn/server-list"
 
-cat > /etc/openvpn/clients/${CLIENT}.ovpn <<EOF
+if compgen -G "${SERVER_LIST_DIR}/server-*.txt" >/dev/null; then
+    # Use version sort (-V) so that 2 < 10
+    for FILE in $(ls "${SERVER_LIST_DIR}/server-"*.txt | sort -V); do
+        # Each line in the file should be: "<address> <port>"
+        while read -r ADDR PORT _; do
+            [[ -z "$ADDR" || -z "$PORT" ]] && continue   # skip empty or malformed
+            REMOTE_LINES+="remote ${ADDR} ${PORT}"$'\n'
+        done < "$FILE"
+    done
+else
+    echo "ERROR: No server list files found in ${SERVER_LIST_DIR}"
+    exit 1
+fi
+
+###############################################################################
+# 5.  Create client configuration
+###############################################################################
+OUT_DIR=/etc/openvpn/clients
+mkdir -p "$OUT_DIR"
+
+cat > "${OUT_DIR}/${CLIENT}.ovpn" <<EOF
 client
-dev tun
+dev   tun
 proto $OPENVPN_PROTO
 
-# Primary server
-remote $OPENVPN_PRIMARY_SERVER_HOSTNAME $OPENVPN_PRIMARY_SERVER_PORT
-
-# (Optional) Secondary/backup server
-remote $OPENVPN_BACKUP_SERVER_HOSTNAME $OPENVPN_BACKUP_SERVER_PORT
+# --- Remote servers (priority order) ---
+${REMOTE_LINES%\\n}
 
 resolv-retry infinite
 nobind
 persist-key
 persist-tun
 remote-cert-tls server
-auth SHA256
+
+auth   SHA256
 cipher AES-256-CBC
-verb 3
+verb   3
 pull-filter ignore "redirect-gateway"
 
 <ca>
@@ -76,9 +102,6 @@ $(cat /etc/openvpn/pki/private/${CLIENT}.key)
 $(cat /etc/openvpn/ta.key)
 </tls-auth>
 key-direction 1
-
 EOF
 
-echo "Client config created: /etc/openvpn/clients/${CLIENT}.ovpn"
-
-chown -R 1001:100 /etc/openvpn/*
+echo "✓ Client config created: ${OUT_DIR}/${CLIENT}.ovpn"

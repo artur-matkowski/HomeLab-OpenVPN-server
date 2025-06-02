@@ -5,14 +5,15 @@ set -x  # Enable verbose logging for debugging
 
 
 # Optional environment variables with defaults
+: "${SERVER_ADDRESS:=internal.net}"
+: "${SERVER_LISTENING_PORT:=1194}"
+: "${SERVER_FALLBACK_PRIORITY:=0}"
 : "${OPENVPN_PROTO:=udp}"
-: "${OPENVPN_SERVER_NAME:=server}"
-: "${OPENVPN_NETWORK:=192.168.33.0}"
+: "${OPENVPN_NETWORK:=192.168.1.0}"
 : "${OPENVPN_NETMASK:=255.255.255.0}"
-: "${OPENVPN_HOST_NETWORK:=192.168.1.0}"
+: "${OPENVPN_HOST_NETWORK:=192.168.0.0}"
 : "${OPENVPN_HOST_NETMASK:=255.255.255.0}"
-: "${INTERNAL_DOMAIN:=internal.net}"
-: "${HOME_DNS:=192.168.1.207}"
+: "${VPN_DNS:=8.8.4.4}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
 : "${OPENVPN_COUNTRY:=US}"
 : "${OPENVPN_PROVINCE:=LS}"
@@ -45,24 +46,32 @@ if [ ! -f "/etc/openvpn/pki/ca.crt" ]; then
     openvpn --genkey --secret /etc/openvpn/ta.key
 
     # Build server cert
-    export EASYRSA_REQ_CN="$OPENVPN_SERVER_NAME"
-    ./easyrsa build-server-full "$OPENVPN_SERVER_NAME" nopass
+    export EASYRSA_REQ_CN="$SERVER_ADDRESS"
+    ./easyrsa build-server-full "$SERVER_ADDRESS" nopass
 
     # Copy relevant files
-    cp pki/ca.crt pki/private/ca.key pki/issued/"$OPENVPN_SERVER_NAME".crt \
-       pki/private/"$OPENVPN_SERVER_NAME".key pki/dh.pem /etc/openvpn/
+    cp pki/ca.crt pki/private/ca.key pki/issued/"$SERVER_ADDRESS".crt \
+       pki/private/"$SERVER_ADDRESS".key pki/dh.pem /etc/openvpn/
     cp /etc/openvpn/ta.key /etc/openvpn/
 fi
 
+mkdir -p /etc/openvpn/server-list
+
+cat > /etc/openvpn/server-list/server-${SERVER_FALLBACK_PRIORITY}.txt <<EOF
+$SERVER_ADDRESS $SERVER_LISTENING_PORT
+EOF
+
 # Generate server.conf if it doesn't exist yet 
-if [ ! -f "/etc/openvpn/server.conf" ]; then
-    cat > /etc/openvpn/server.conf <<EOF
-port $THIS_SERVER_LISTENING_PORT
+# or do it always, to respect environment variables
+#if [ ! -f "/etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf" ]; then
+    cat > /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf <<EOF
+port $SERVER_LISTENING_PORT
 proto $OPENVPN_PROTO
+multihome
 dev tun
 ca /etc/openvpn/pki/ca.crt
-cert /etc/openvpn/pki/issued/${OPENVPN_SERVER_NAME}.crt
-key /etc/openvpn/pki/private/${OPENVPN_SERVER_NAME}.key
+cert /etc/openvpn/pki/issued/${SERVER_ADDRESS}.crt
+key /etc/openvpn/pki/private/${SERVER_ADDRESS}.key
 dh /etc/openvpn/pki/dh.pem
 auth SHA256
 tls-auth /etc/openvpn/ta.key 0
@@ -70,21 +79,19 @@ topology subnet
 server $OPENVPN_NETWORK $OPENVPN_NETMASK
 ifconfig-pool-persist ipp.txt
 push "route ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}"
-push "dhcp-option DNS ${HOME_DNS}"
-push "dhcp-option DOMAIN ${INTERNAL_DOMAIN}"
+push "dhcp-option DNS ${VPN_DNS}"
+push "dhcp-option DOMAIN ${SERVER_ADDRESS}"
 keepalive 10 120
 cipher AES-256-CBC
 user nobody
 group nogroup
 persist-key
 persist-tun
-status /etc/openvpn/openvpn-status.log
+status /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.log
 verb 3
 explicit-exit-notify 1
 EOF
-fi
-
-chown -R 1001:100 /etc/openvpn/*
+#fi
 
 # Run OpenVPN
-exec openvpn --config /etc/openvpn/server.conf
+exec openvpn --config /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf

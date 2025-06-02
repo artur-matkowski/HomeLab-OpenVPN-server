@@ -5,13 +5,14 @@ set -x  # Enable verbose logging for debugging
 
 
 # Optional environment variables with defaults
-: "${OPENVPN_PROTO:=udp}"
+: "${SERVER_ADDRESS:=internal.net}"
+: "${SERVER_LISTENING_PORT:=1194}"
 : "${SERVER_FALLBACK_PRIORITY:=0}"
+: "${OPENVPN_PROTO:=udp}"
 : "${OPENVPN_NETWORK:=192.168.1.0}"
 : "${OPENVPN_NETMASK:=255.255.255.0}"
 : "${OPENVPN_HOST_NETWORK:=192.168.0.0}"
 : "${OPENVPN_HOST_NETMASK:=255.255.255.0}"
-: "${SERVER_ADDRESS:=internal.net}"
 : "${VPN_DNS:=8.8.4.4}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
 : "${OPENVPN_COUNTRY:=US}"
@@ -58,7 +59,7 @@ fi
 # or do it always, to respect environment variables
 #if [ ! -f "/etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf" ]; then
     cat > /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf <<EOF
-port $THIS_SERVER_LISTENING_PORT
+port $SERVER_LISTENING_PORT
 proto $OPENVPN_PROTO
 multihome
 dev tun

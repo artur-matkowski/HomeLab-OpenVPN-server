@@ -1,5 +1,5 @@
-# Use an ARM64 Ubuntu base image
-FROM arm64v8/ubuntu:22.04
+# Use an amd64 Ubuntu base image (Intel N100)
+FROM ubuntu:22.04
 
 ENV OPENVPN_HOST_NETWORK=192.168.74.0
 

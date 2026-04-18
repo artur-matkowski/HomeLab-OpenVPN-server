@@ -21,6 +21,7 @@ set -x  # Enable verbose logging for debugging
 : "${OPENVPN_ORG:=MyVPN Org}"
 : "${OPENVPN_EMAIL:=admin@example.com}"
 : "${OPENVPN_OU:=MyVPN Unit}"
+: "${PFSENSE_CLIENT_CN:=pfsense-site}"
 
 # We do NOT enable IP forwarding here, that’s done on the host
 # sysctl -w net.ipv4.ip_forward=1
@@ -78,6 +79,8 @@ tls-auth /etc/openvpn/ta.key 0
 topology subnet
 server $OPENVPN_NETWORK $OPENVPN_NETMASK
 ifconfig-pool-persist ipp.txt
+client-config-dir /etc/openvpn/ccd
+route ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}
 push "route ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}"
 push "dhcp-option DNS ${VPN_DNS}"
 push "dhcp-option DOMAIN ${SERVER_ADDRESS}"
@@ -92,6 +95,12 @@ verb 3
 explicit-exit-notify 1
 EOF
 #fi
+
+# Seed CCD entry that wires the pushed LAN subnet to the pfSense peer
+mkdir -p /etc/openvpn/ccd
+cat > /etc/openvpn/ccd/"$PFSENSE_CLIENT_CN" <<EOF
+iroute ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}
+EOF
 
 # Run OpenVPN
 exec openvpn --config /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf

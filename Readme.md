@@ -1,167 +1,111 @@
 # HomeLab OpenVPN Server
 
-A Docker-based OpenVPN server solution designed for high-availability home lab deployments with multi-instance support and Syncthing synchronization.
+A Docker-based OpenVPN hub for home-lab remote access. Deployed on a public-IP VPS (e.g. Hetzner), with a site router (e.g. pfSense) dialing in as a peer so the home LAN is reachable from road-warrior clients even when the home ISP has no static or public IP (CGNAT).
+
+## Topology
+
+```
+  Laptop ──OpenVPN──►  VPS hub (this repo)  ◄──OpenVPN── pfSense ── LAN 192.168.74.0/24
+  192.168.75.x          192.168.75.1/tun0     site client   (pfSense is also LAN gateway)
+                        forwards tun0 ↔ tun0
+                        CCD iroute LAN → pfSense cert
+```
+
+- The VPS runs this container as the OpenVPN **server**.
+- pfSense connects as an OpenVPN **site client**; a matching CCD entry (`iroute`) tells the server that the LAN lives behind the pfSense peer's cert CN.
+- Road-warriors are regular OpenVPN clients; the server pushes a route to the home LAN only (split tunnel — clients keep their own internet).
+- Because pfSense is simultaneously the LAN default gateway and the site client, all LAN hosts automatically reach the VPN subnet through pfSense — no per-host static routes.
 
 ## Features
 
-- **Multi-Instance Support**: Run primary and secondary OpenVPN servers with automatic failover
-- **Docker-Based**: Easy deployment using Docker Compose
-- **ARM64 Compatible**: Built for ARM-based systems (e.g., Raspberry Pi)
-- **Certificate Management**: Automated PKI setup with easy-rsa
-- **Client Configuration Generation**: Automated .ovpn profile generation with multi-server failover support
-- **Network Routing**: Automatic iptables configuration for VPN traffic
-- **Syncthing Integration**: Synchronized configuration across multiple nodes
+- Docker-based, `ubuntu:22.04` amd64 image
+- Automated easy-rsa PKI init on first run
+- CCD + `iroute` wiring for the pfSense site peer
+- Client `.ovpn` generator with multi-remote (fallback) list support
+- Host-side iptables + IP forwarding helper for the VPS (`host_init.sh`)
 
 ## Prerequisites
 
-- Docker and Docker Compose installed
-- ARM64-based system (e.g., Raspberry Pi) or compatible architecture
-- Syncthing (optional, for multi-node deployments)
-- Network access to required ports (default: 8194, 8443)
+- VPS with public static IP, Docker + Docker Compose, UDP port 1194 open
+- A site router capable of OpenVPN client mode (pfSense, OPNsense, OpenWRT, …)
+- Home LAN subnet distinct from the VPN subnet (defaults: LAN `192.168.74.0/24`, VPN `192.168.75.0/24`)
 
 ## Configuration
 
-The OpenVPN server is configured through environment variables in `docker-compose.yml`:
+All server settings are passed via environment variables in `docker-compose.yml`:
 
-### Primary Server Configuration
-- `SERVER_FALLBACK_PRIORITY`: Server priority (0 = highest priority)
-- `SERVER_ADDRESS`: Public domain or IP address
-- `SERVER_LISTENING_PORT`: OpenVPN listening port (default: 8194)
-- `VPN_DNS`: DNS server to push to clients
-- `OPENVPN_PROTO`: Protocol (udp/tcp)
-- `OPENVPN_NETWORK`: VPN subnet (e.g., 192.168.200.0)
-- `OPENVPN_HOST_NETWORK`: Host network to route through VPN
+### Network
+- `SERVER_ADDRESS`: public FQDN or IP of the VPS (embedded into `.ovpn` files)
+- `SERVER_LISTENING_PORT`: OpenVPN port (default: `1194`)
+- `OPENVPN_PROTO`: `udp` or `tcp` (default: `udp`)
+- `OPENVPN_NETWORK` / `OPENVPN_NETMASK`: VPN client subnet (default: `192.168.75.0` / `255.255.255.0`)
+- `OPENVPN_HOST_NETWORK` / `OPENVPN_HOST_NETMASK`: home LAN pushed to clients and routed to the pfSense peer (default: `192.168.74.0` / `255.255.255.0`)
+- `VPN_DNS`: DNS server pushed to clients (typically a LAN resolver)
 
-### Certificate Authority Settings
-- `OPENVPN_COUNTRY`: Country code (default: US)
-- `OPENVPN_PROVINCE`: State/Province
-- `OPENVPN_CITY`: City
-- `OPENVPN_ORG`: Organization name
-- `OPENVPN_EMAIL`: Administrator email
-- `OPENVPN_OU`: Organizational unit
+### pfSense peer
+- `PFSENSE_CLIENT_CN`: certificate CN of the pfSense site client (default: `pfsense-site`). The init script seeds `/etc/openvpn/ccd/<CN>` with `iroute <OPENVPN_HOST_NETWORK> <OPENVPN_HOST_NETMASK>`, which is what actually makes the LAN reachable through that peer.
+
+### Certificate Authority
+- `OPENVPN_COUNTRY`, `OPENVPN_PROVINCE`, `OPENVPN_CITY`, `OPENVPN_ORG`, `OPENVPN_EMAIL`, `OPENVPN_OU`
+
+### Failover (legacy, optional)
+- `SERVER_FALLBACK_PRIORITY`: keep at `0` for a single hub. The priority/server-list machinery is retained so multiple instances can still be combined into one `.ovpn` with ordered `remote` lines.
 
 ## Deployment
 
-### Multi-Node Deployment Workflow
-
-When deploying OpenVPN across multiple nodes with Syncthing synchronization:
-
-1. **Deploy on Machine A**
-   - Start the Docker container on the primary machine
-   - The container will automatically initialize the PKI if it doesn't exist
-
-2. **Generate Certificates**
-   - Generate all required certificates (server certificates are created automatically)
-   - Client certificates can be generated as needed (see Client Management section)
-
-3. **Restart Container**
-   - Restart the container to update file ownership (`chown`)
-   - This ensures proper permissions for OpenVPN operation
-
-4. **Syncthing Synchronization**
-   - Syncthing will automatically copy the configuration to remote machines
-   - Ensure Syncthing is properly configured between nodes
-
-5. **Verify Ownership on Machine B**
-   - Confirm that configuration files on the secondary machine have the correct ownership
-   - Files should be owned by the appropriate user/group for OpenVPN
-
-6. **Deploy to Machine B**
-   - Start the Docker container on the secondary machine
-   - The secondary server will use the synchronized certificates and configuration
-
-### Single-Node Deployment
-
-For a single-node deployment:
+On the VPS:
 
 ```bash
-# Pull the image
-docker-compose pull
-
-# Start the service
+# 1. Clone / copy this repo
+# 2. Edit docker-compose.yml (SERVER_ADDRESS, VPN_DNS, etc.)
 docker-compose up -d
+docker-compose logs -f openvpn-hub
 
-# Check logs
-docker-compose logs -f openvpn-primary
+# 3. One-time host config (IP forwarding + FORWARD rules for tun0↔tun0)
+sudo ./host_init.sh 192.168.75.0/24 192.168.74.0/24 tun0
 ```
+
+`host_init.sh` runs on the VPS host, **not** inside the container. Re-run on boot (or install as a systemd oneshot / `iptables-persistent`).
 
 ## Client Management
 
-### Generating Client Certificates
-
-To generate a client configuration file:
+### pfSense site client (generate once)
 
 ```bash
-docker exec -it openvpn-primary generate_client.sh <client_name>
+docker exec -it openvpn-hub generate_client.sh pfsense-site
+docker cp openvpn-hub:/etc/openvpn/clients/pfsense-site.ovpn ./
 ```
 
-The generated `.ovpn` file will be created in `/etc/openvpn/clients/` inside the container and includes:
-- All server addresses with automatic failover priority
-- Embedded certificates and keys
-- Pre-configured routing to access host network resources
+On pfSense: **VPN → OpenVPN → Clients** → mode *Peer to Peer (SSL/TLS)*, UDP, remote = VPS FQDN:1194, paste CA / cert / key / ta from the `.ovpn`, key direction 1, cipher AES-256-CBC, auth SHA256, **IPv4 Remote network(s)** = `192.168.75.0/24`. Add firewall rules on the OpenVPN tab permitting `192.168.75.0/24 → LAN net`.
 
-### Retrieving Client Configuration
+### Road-warrior clients
 
 ```bash
-docker cp openvpn-primary:/etc/openvpn/clients/<client_name>.ovpn ./
+docker exec -it openvpn-hub generate_client.sh laptop1
+docker cp openvpn-hub:/etc/openvpn/clients/laptop1.ovpn ./
 ```
 
-## Syncthing Synchronization
+Generated `.ovpn` already includes `pull-filter ignore "redirect-gateway"` — clients keep their own internet and only reach the home LAN via the tunnel.
 
-### Files to Synchronize
-The following directory should be synchronized between nodes:
-- `/etc/openvpn` (mounted from host at `/home/pi/syncthing/openvpn`)
+## Verification
 
-### Files to Exclude from Synchronization
-⚠️ **Important**: The following files must be excluded from Syncthing synchronization:
-- `server-*.conf` (server configuration files are instance-specific)
-- `openvpn-status.log` (runtime status files)
-- `server-*.log` (server-specific log files)
-
-Each instance generates its own server configuration based on environment variables.
-
-## Troubleshooting
-
-### KDE (Plasma) NetworkManager VPN Route Configuration
-
-If you need to configure VPN routing to use only VPN for specific resources:
-
-1. Open **System Settings** → **Network** (or **Connections**)
-2. Find your VPN connection and click **Edit**
-3. Go to the **IPv4** or **IPv6** tab (depending on which you use)
-4. Click the **Routes…** button to access advanced route options
-5. Check or uncheck the option:
-   - **"Use only for resources on its network"** (wording may vary by KDE version)
-   
-This setting controls whether all traffic or only specific network traffic goes through the VPN.
-
-### Common Issues
-
-- **Connection timeout**: Verify firewall rules allow traffic on the configured ports
-- **Certificate errors**: Ensure PKI was properly initialized and certificates are synchronized
-- **Routing issues**: Check that `host_init.sh` successfully configured iptables rules
+- VPS: `docker-compose logs` shows `Initialization Sequence Completed`; `ip route` lists `192.168.74.0/24 dev tun0` once pfSense connects; `iptables -S FORWARD` shows the two tun0↔tun0 ACCEPT rules.
+- pfSense: **Status → OpenVPN** shows the client Connected with a tunnel IP in `192.168.75.0/24`.
+- Laptop: `ping 192.168.75.1` (hub), then `ping <LAN host>` (e.g. `192.168.74.200`) — both reply. `curl ifconfig.me` shows the laptop's own public IP (split tunnel).
+- Reverse direction: from a LAN host, `ping <laptop tun IP>` (visible in the OpenVPN status page) — expect reply.
 
 ## Architecture
 
-The solution uses several scripts to manage the OpenVPN lifecycle:
-
-- `init.sh`: Container entrypoint that initializes network configuration
-- `init_vpn.sh`: Sets up PKI, generates certificates, and starts OpenVPN
-- `host_init.sh`: Configures host iptables rules and IP forwarding
-- `generate_client.sh`: Creates client certificates and .ovpn profiles
-- `get_interface.sh`: Determines the correct network interface for routing
-
-## Known Issues & TODO
-
-### TODO
-- **Client generation multi-server support**: After cleaning the environment, `generate_client.sh` no longer has addresses of all servers. 
-  - **Proposed solution**: All instances should create a file with their server address in a shared directory (e.g., `/etc/openvpn/server-list/`). When a client certificate is created, scan this directory for all 'registered' servers and include them in the client configuration.
-  - **Current status**: Partially implemented - server list functionality exists but may need refinement after environment cleanup.
+Scripts:
+- `init.sh` — container entrypoint
+- `init_vpn.sh` — one-shot PKI init, generates `server-${PRIORITY}.conf`, seeds CCD `iroute` for the pfSense peer, `exec`s OpenVPN
+- `host_init.sh` — VPS-side IP forwarding + tun0↔tun0 FORWARD rules (no MASQUERADE — return path goes via pfSense, not the VPS WAN)
+- `generate_client.sh` — builds client cert + assembles `.ovpn` with all registered remotes (from `/etc/openvpn/server-list/`)
 
 ## License
 
-This project is provided as-is for home lab use.
+Provided as-is for home-lab use.
 
 ## Contributing
 
-Contributions are welcome! Please submit issues or pull requests through GitHub.
+Issues and PRs welcome.

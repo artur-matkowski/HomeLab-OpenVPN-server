@@ -1,23 +1,22 @@
 version: "3"
 
 services:
-  openvpn-primary:
+  openvpn-hub:
     image: arturmatkowski/openvpn-arm:latest
-    container_name: openvpn-primary
-    # We'll run privileged with net=host, so that the container can directly bind to host's IP & port
+    container_name: openvpn-hub
     network_mode: "host"
     cap_add:
       - NET_ADMIN
     devices:
       - /dev/net/tun
     restart: unless-stopped
-    privileged: true 
+    privileged: true
     tty: true
     stdin_open: true
     environment:
       - SERVER_FALLBACK_PRIORITY=0
-      - SERVER_ADDRESS=myDomain
-      - SERVER_LISTENING_PORT=8194
+      - SERVER_ADDRESS=myHetznerFqdn
+      - SERVER_LISTENING_PORT=1194
       - VPN_DNS=192.168.74.200
       - OPENVPN_PROTO=udp
       - OPENVPN_COUNTRY=US
@@ -26,42 +25,8 @@ services:
       - OPENVPN_ORG=MyVPN
       - OPENVPN_EMAIL=admin@example.com
       - OPENVPN_OU=MyVPN_Unit
-      - OPENVPN_NETWORK=192.168.200.0
+      - OPENVPN_NETWORK=192.168.75.0
       - OPENVPN_HOST_NETWORK=192.168.74.0
+      - PFSENSE_CLIENT_CN=pfsense-site
     volumes:
-      # The shared data that is synced between nodes
-      - /home/pi/syncthing/openvpn:/etc/openvpn
-      # If you want a local volume for openvpn logs or overrides, you could do:
-      # - /home/pi/docker/openvpn/logs-primary:/etc/openvpn/logs
-    # If you rely on Keepalived for floating IP, you can also use it here
-    # If you want to just bind to the Pi’s IP, net=host is enough.
-
-  openvpn-secondary:
-    image: arturmatkowski/openvpn-arm:latest
-    container_name: openvpn-secondary
-    network_mode: "host"
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun
-    restart: unless-stopped
-    privileged: true 
-    tty: true
-    stdin_open: true
-    environment:
-      - SERVER_FALLBACK_PRIORITY=1
-      - SERVER_ADDRESS=myDomain
-      - SERVER_LISTENING_PORT=8443
-      - VPN_DNS=192.168.74.206
-      - OPENVPN_PROTO=udp
-      - OPENVPN_SERVER_NAME=server
-      - OPENVPN_COUNTRY=US
-      - OPENVPN_PROVINCE=State
-      - OPENVPN_CITY=City
-      - OPENVPN_ORG=MyVPN
-      - OPENVPN_EMAIL=admin@example.com
-      - OPENVPN_OU=MyVPN_Unit
-      - OPENVPN_NETWORK=192.168.206.0
-      - OPENVPN_HOST_NETWORK=192.168.74.0
-    volumes:
-      - /home/pi/syncthing/openvpn:/etc/openvpn
+      - /opt/openvpn:/etc/openvpn

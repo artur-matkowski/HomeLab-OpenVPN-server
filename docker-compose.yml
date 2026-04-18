@@ -2,7 +2,7 @@ version: "3"
 
 services:
   openvpn-hub:
-    image: arturmatkowski/openvpn-arm:latest
+    image: arturmatkowski/openvpn-server:latest
     container_name: openvpn-hub
     network_mode: "host"
     cap_add:

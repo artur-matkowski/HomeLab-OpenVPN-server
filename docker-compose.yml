@@ -27,6 +27,9 @@ services:
       - OPENVPN_OU=MyVPN_Unit
       - OPENVPN_NETWORK=192.168.75.0
       - OPENVPN_HOST_NETWORK=192.168.74.0
-      - PFSENSE_CLIENT_CN=pfsense-site
+      # Must EXACTLY match the CN of the cert pfSense connects with.
+      # The CCD file at /etc/openvpn/ccd/<this value> carries the iroute that
+      # binds the LAN subnet to the pfSense peer. CN mismatch = no LAN reachability.
+      - PFSENSE_CLIENT_CN=matkoland
     volumes:
       - /opt/openvpn:/etc/openvpn

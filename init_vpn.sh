@@ -85,6 +85,8 @@ push "route ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}"
 push "dhcp-option DNS ${VPN_DNS}"
 push "dhcp-option DOMAIN ${SERVER_ADDRESS}"
 keepalive 10 120
+tun-mtu 1500
+mssfix 1300
 cipher AES-256-CBC
 user nobody
 group nogroup

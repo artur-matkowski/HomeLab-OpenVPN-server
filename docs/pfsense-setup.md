@@ -2,9 +2,13 @@
 
 Step-by-step walkthrough for configuring pfSense as a site-to-site OpenVPN **client** that dials out to this hub. Tested against pfSense CE 2.7+ / Plus 23+.
 
+> Context: the routing/crypto model behind these settings is in
+> [architecture.md](architecture.md); the `.ovpn` you import here is produced per
+> [client-management.md](client-management.md); failures are in [troubleshooting.md](troubleshooting.md).
+
 ## Mental model
 
-pfSense is just a regular OpenVPN client to the hub — but because it's also the LAN gateway, every LAN host transparently reaches the VPN subnet through it (no per-host static routes anywhere). The hub binds the LAN subnet to pfSense's certificate via a CCD `iroute` entry. **CN of the cert == filename in `/etc/openvpn/ccd/` on the hub == value of `PFSENSE_CLIENT_CN` env var on the hub.** All three must match exactly.
+pfSense is just a regular OpenVPN client to the hub — but because it's also the LAN gateway, every LAN host transparently reaches the VPN subnet through it (no per-host static routes anywhere). The hub binds the LAN subnet to pfSense's certificate via a CCD `iroute` entry. **CN of the cert == filename in `/etc/openvpn/ccd/` on the hub == value of `PFSENSE_CLIENT_CN` env var on the hub.** All three must match exactly. (This is the CN-match invariant — see [architecture.md](architecture.md).)
 
 ## Prerequisites
 
@@ -171,50 +175,16 @@ Apply.
 ## Step 6 — Verify
 
 1. **`Status → OpenVPN`**: row "VPN Hub" → **up**, Virtual Address inside `192.168.75.0/24`.
-2. **On the hub**:
-   ```
-   docker exec openvpn-hub cat /etc/openvpn/server-0.log
-   ```
-   `ROUTING TABLE` section must show your pfSense CN with both:
-   - the tunnel IP it received (`192.168.75.x`)
-   - the LAN: `192.168.74.0/24,<your_cn>,…`
-   If the LAN line is missing, see "Troubleshooting → Iroute not active".
+2. **On the hub**: `docker exec openvpn-hub cat /etc/openvpn/server-0.log` — the
+   `ROUTING TABLE` section must show your pfSense CN with **both** its tunnel IP
+   (`192.168.75.x`) and the LAN (`192.168.74.0/24,<your_cn>,…`).
 3. **From a LAN host**: `ping 192.168.75.1` (the hub) → should reply.
-4. **From a road-warrior client**: `ping <some LAN host>` → should reply.
+4. **From a road-warrior**: `ping <some LAN host>` → should reply.
+
+Full hub-side and end-to-end verification: [operations.md](operations.md).
 
 ## Troubleshooting
 
-### Tunnel up, but LAN unreachable from road-warriors
-Almost always **CCD/CN mismatch**. Verify the three values are identical:
-
-```
-# On the hub:
-docker exec openvpn-hub ls /etc/openvpn/ccd/
-docker exec openvpn-hub grep PFSENSE_CLIENT_CN /proc/1/environ | tr '\0' '\n'
-docker exec openvpn-hub grep "Common Name" /etc/openvpn/server-0.log
-```
-
-All three must show the same string. If they don't:
-- Update `PFSENSE_CLIENT_CN` in `docker-compose.yml`
-- `docker compose up -d openvpn-hub` to recreate
-- Bounce pfSense's OpenVPN client (`Status → OpenVPN → Restart this client`) to re-trigger CCD lookup
-
-### Pings within `192.168.75.0/24` (e.g. road-warrior → pfSense's tun IP) fail
-On the hub, FORWARD chain may not have the tun↔tun ACCEPT rule:
-
-```
-ssh hub iptables -nL DOCKER-USER
-```
-
-Should contain `ACCEPT all -- ... tun0 tun0`. If empty, the container's entrypoint didn't complete — check `docker logs openvpn-hub` for errors from `host_init.sh`. A `docker compose restart openvpn-hub` re-runs it.
-
-### `Status → OpenVPN` says "Reconnecting; tls-error"
-- Cipher / digest mismatch → recheck the "Cryptographic Settings" section
-- TLS keydir direction wrong → must be **Direction 1** on pfSense (server uses 0)
-- Time skew → `Status → System Logs → OpenVPN` will say "Replay-window backtrack" or "TLS handshake failed" — fix NTP on either side
-
-### LAN hosts see traffic from `192.168.75.x` but replies never arrive at road-warriors
-pfSense missing the return route. `Diagnostics → Routes`, search `192.168.75` — must show a route via the OpenVPN client interface. If absent, the **IPv4 Remote network(s)** field in Step 3 wasn't saved. Re-edit the OpenVPN client, save, apply.
-
-### One LAN host works, another doesn't
-That host has a custom default gateway (not pfSense). Either change its gateway, or add a per-host static route for `192.168.75.0/24` via pfSense.
+Every pfSense failure mode (CN/CCD mismatch, tls-error, HMAC failure, missing return
+route, single-host gateway issues) is consolidated in
+[troubleshooting.md](troubleshooting.md). Start there.

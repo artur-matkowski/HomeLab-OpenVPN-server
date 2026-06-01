@@ -93,6 +93,10 @@ group nogroup
 persist-key
 persist-tun
 status /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.log
+# Management interface for openvpn-monitor (read-only TCP, localhost only).
+# Bound to 127.0.0.1 so it's never reachable from outside the host; the
+# monitor sidecar runs with network_mode: host and connects via loopback.
+management 127.0.0.1 5555
 verb 3
 explicit-exit-notify 1
 EOF

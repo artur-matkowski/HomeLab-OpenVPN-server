@@ -50,10 +50,10 @@ container; `server-0.conf` is rewritten from current env on start).
 | Task | Command |
 |------|---------|
 | Add a road-warrior | `docker exec -it openvpn-hub generate_client.sh <name>` → `docker cp …` |
-| Recreate after env change | edit `docker-compose.yml`, `docker compose up -d openvpn-hub` |
+| Recreate after env change | edit `.env`, `docker compose up -d openvpn-hub` (or re-run a deploy script) |
 | Restart in place | `docker compose restart openvpn-hub` (re-runs `host_init.sh` too) |
 | Tail VPN status | `docker exec openvpn-hub cat /etc/openvpn/server-0.log` |
-| Re-apply host iptables manually | `sudo ./host_init.sh tun0 192.168.75.0/24 192.168.74.0/24` |
+| Re-apply host iptables manually | `sudo ./src/host_init.sh tun0 192.168.75.0/24 192.168.74.0/24` |
 
 Changing crypto-affecting settings (`auth`, `cipher`, `ta.key`, key direction) requires
 re-syncing pfSense and re-exporting road-warrior `.ovpn`s — see the tls-auth triad in

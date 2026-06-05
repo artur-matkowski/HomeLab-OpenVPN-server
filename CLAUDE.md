@@ -13,7 +13,8 @@ an OpenVPN site client; because pfSense is also the LAN gateway, every LAN host 
 reachable through it with no per-host routes.
 
 It is **infrastructure-as-scripts**, not an application: no build/test/lint suite.
-"Running it" means building the image and `docker compose up -d` on the VPS.
+"Running it" means `./scripts/deploy-prod.sh` on the VPS (build the image locally +
+`docker compose up -d`). Config is read from `.env` (copy `.env.example` first).
 
 ## Topology (the one diagram that matters)
 
@@ -32,12 +33,12 @@ It is **infrastructure-as-scripts**, not an application: no build/test/lint suit
   *back through pfSense*, so the hub does **no NAT/MASQUERADE**.
 - Split tunnel: clients keep their own internet; only the LAN route is pushed.
 - DNS is **server-pushed** (`VPN_DNS`); `server.conf` is rewritten every start, so edit
-  env + `docker compose up -d` re-applies it — no `.ovpn` regen.
+  `.env` + redeploy re-applies it — no `.ovpn` regen.
 
 ## Critical invariants (break one → silent failure)
 
 1. **CN match (3 places).** The pfSense cert CN == the filename in
-   `/etc/openvpn/ccd/<CN>` on the hub == `PFSENSE_CLIENT_CN` in `docker-compose.yml`.
+   `/etc/openvpn/ccd/<CN>` on the hub == `PFSENSE_CLIENT_CN` in `.env`.
    The CCD `iroute` is the *only* thing that makes the LAN reachable through pfSense.
    Mismatch ⇒ tunnel connects, road-warriors see the VPN subnet but never the LAN.
 2. **tls-auth triad.** Control channel HMAC depends only on: `ta.key` bytes,
@@ -52,17 +53,24 @@ It is **infrastructure-as-scripts**, not an application: no build/test/lint suit
 
 ## Repo file map
 
+Layout: **`src/`** = everything baked into the image (COPYed by the Dockerfile);
+**`scripts/`** = host-side build/deploy tooling (never in the image); config lives
+in **`.env`** (gitignored; `.env.example` is the committed template).
+
 | File | Role | Detail |
 |------|------|--------|
-| `init.sh` | container entrypoint → runs host setup, then exec's the VPN init | `docs/code-map.md` |
-| `init_vpn.sh` | PKI init, writes `server-0.conf` (+`ifconfig-pool`), seeds CCD iroute + pfSense IP pin, exec's openvpn | `docs/code-map.md` |
-| `host_init.sh` | host-namespace: `ip_forward` + `DOCKER-USER` tun↔tun ACCEPT | `docs/code-map.md` |
-| `generate_client.sh` | build client cert + assemble `.ovpn` (multi-remote); **interactive** static-IP pin via CCD | `docs/client-management.md` |
-| `lib_net.sh` | shared IPv4 helpers, sourced by `init_vpn.sh` + `generate_client.sh` | `docs/code-map.md` |
-| `get_interface.sh` | standalone helper: IP → egress iface (unused by other scripts) | `docs/code-map.md` |
-| `buildDockerImage.sh` | `docker build … :dev` | `docs/deployment.md` |
-| `Dockerfile` | `ubuntu:22.04` + openvpn/easy-rsa/iptables | `docs/code-map.md` |
-| `docker-compose.yml` | host networking, privileged, `/opt/openvpn` bind mount, env | `docs/configuration.md` |
+| `src/init.sh` | container entrypoint → runs host setup, then exec's the VPN init | `docs/code-map.md` |
+| `src/init_vpn.sh` | PKI init, writes `server-0.conf` (+`ifconfig-pool`), seeds CCD iroute + pfSense IP pin, exec's openvpn | `docs/code-map.md` |
+| `src/host_init.sh` | host-namespace: `ip_forward` + `DOCKER-USER` tun↔tun ACCEPT | `docs/code-map.md` |
+| `src/generate_client.sh` | build client cert + assemble `.ovpn` (multi-remote); **interactive** static-IP pin via CCD | `docs/client-management.md` |
+| `src/lib_net.sh` | shared IPv4 helpers, sourced by `init_vpn.sh` + `generate_client.sh` | `docs/code-map.md` |
+| `src/get_interface.sh` | standalone helper: IP → egress iface (unused by other scripts) | `docs/code-map.md` |
+| `scripts/build.sh` | `build.sh [tag]` → `docker build … :<tag>` (default `latest`); context = repo root | `docs/deployment.md` |
+| `scripts/deploy-dev.sh` | build `:dev` + `IMAGE_TAG=dev docker compose up -d` (testing) | `docs/deployment.md` |
+| `scripts/deploy-prod.sh` | build `:latest` + `IMAGE_TAG=latest docker compose up -d` (VPS) | `docs/deployment.md` |
+| `Dockerfile` | `ubuntu:22.04` + openvpn/easy-rsa/iptables; COPYs from `src/` | `docs/code-map.md` |
+| `docker-compose.yml` | host networking, privileged, `/opt/openvpn` bind mount, `env_file: .env`, `image …:${IMAGE_TAG:-latest}` | `docs/configuration.md` |
+| `.env` / `.env.example` | all hub config (gitignored) / committed template | `docs/configuration.md` |
 
 ## Documentation index — read what you need
 
@@ -79,8 +87,6 @@ It is **infrastructure-as-scripts**, not an application: no build/test/lint suit
 
 ## Known drift / gotchas (verify before trusting)
 
-- **Image tag mismatch:** `buildDockerImage.sh` builds `:dev`; `docker-compose.yml`
-  pulls `:latest`. After a local build you must retag or edit the compose tag.
 - **No monitor sidecar yet:** `init_vpn.sh` enables `management 127.0.0.1 5555`
   for an openvpn-monitor sidecar, but `docker-compose.yml` defines no such service.
 - **No systemd unit in the repo:** older docs mentioned `openvpn-host-init.service`;
@@ -93,7 +99,8 @@ It is **infrastructure-as-scripts**, not an application: no build/test/lint suit
 ## Conventions
 
 - Scripts are `bash`, run with `set -e` (and `set -x` for verbose container logs).
-- Env defaults use `: "${VAR:=default}"` — only fill *unset* vars; compose wins,
-  then `Dockerfile` `ENV`, then the script default.
+- Env defaults use `: "${VAR:=default}"` — only fill *unset* vars; `.env` (injected
+  via compose `env_file`) wins, then the script default. (The Dockerfile no longer
+  bakes in config ENVs — config lives in `.env`.)
 - Persistent state (PKI, `ta.key`, `ccd/`, logs, `.ovpn`) lives under `/etc/openvpn`
   in-container, bind-mounted to `/opt/openvpn` on the host.

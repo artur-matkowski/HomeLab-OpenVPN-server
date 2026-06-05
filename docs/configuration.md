@@ -1,26 +1,29 @@
 # Configuration
 
-All hub settings are environment variables, set in `docker-compose.yml`. This page is
-the reference for those vars, the compose-level flags, and the `server.conf` they
-generate. For deploy steps see [deployment.md](deployment.md); for the scripts that
-consume these, see [code-map.md](code-map.md).
+All hub settings are environment variables, set in **`.env`** (gitignored; copy
+`.env.example` and edit). `docker-compose.yml` injects the file into the container via
+`env_file: .env`, where the in-container scripts read it. This page is the reference for
+those vars, the compose-level flags, and the `server.conf` they generate. For deploy
+steps see [deployment.md](deployment.md); for the scripts that consume these, see
+[code-map.md](code-map.md).
 
 ## Environment variables
 
 Defaults below are the script fallbacks (`: "${VAR:=default}"` in `init_vpn.sh` /
-`generate_client.sh`). **Precedence:** compose `environment:` > `Dockerfile` `ENV` >
-script default — the `:=` default only applies when the var is otherwise unset.
+`generate_client.sh`). **Precedence:** `.env` (injected via `env_file`) > script default
+— the `:=` default only applies when the var is otherwise unset. (The `Example`
+columns below show the values seeded into `.env` from the previous compose block.)
 
 ### Network
 
-| Var | Default (script) | `docker-compose.yml` | Purpose |
+| Var | Default (script) | Example (`.env`) | Purpose |
 |-----|------------------|----------------------|---------|
 | `SERVER_ADDRESS` | `internal.net` | `myHetznerFqdn` | Public FQDN/IP of the VPS. Embedded in `.ovpn` `remote` lines and used as the **server cert CN**. |
 | `SERVER_LISTENING_PORT` | `1194` | `1194` | OpenVPN listen port. |
 | `OPENVPN_PROTO` | `udp` | `udp` | `udp` or `tcp`. `explicit-exit-notify` only valid for UDP. |
 | `OPENVPN_NETWORK` | `192.168.1.0` | `192.168.75.0` | VPN client subnet network address. |
 | `OPENVPN_NETMASK` | `255.255.255.0` | *(unset → default)* | VPN subnet mask. |
-| `OPENVPN_HOST_NETWORK` | `192.168.0.0` *(but `Dockerfile` ENV pins `192.168.74.0`)* | `192.168.74.0` | Home LAN pushed to clients, routed, and `iroute`'d to pfSense. |
+| `OPENVPN_HOST_NETWORK` | `192.168.0.0` | `192.168.74.0` | Home LAN pushed to clients, routed, and `iroute`'d to pfSense. |
 | `OPENVPN_HOST_NETMASK` | `255.255.255.0` | *(unset → default)* | Home LAN mask. |
 | `VPN_DNS` | `8.8.4.4` | `192.168.74.200` | DNS pushed to clients (typically a LAN resolver). **Server-pushed, not baked into `.ovpn`** — see the DNS note below. |
 | `OPENVPN_POOL_START` | `<prefix>.128` *(prefix from `OPENVPN_NETWORK`)* | `192.168.75.128` | First address of the **dynamic** lease pool. Clients without a CCD pin get addresses from `[START, END]`. |
@@ -34,14 +37,15 @@ script default — the `:=` default only applies when the var is otherwise unset
 > addressing section in [architecture.md](architecture.md). The defaults derive the
 > `.` prefix from `OPENVPN_NETWORK`, so they track the configured /24 automatically.
 
-> Note: `OPENVPN_HOST_NETWORK` is set in **two** places — `Dockerfile` `ENV`
-> (`192.168.74.0`) and compose. The Dockerfile ENV means the script's own
-> `:=192.168.0.0` fallback is effectively dead. `OPENVPN_NETWORK` is **not** in the
-> Dockerfile, so without the compose override it would fall back to `192.168.1.0`.
+> Note: all of these are set in `.env` (the seed copied from `.env.example`). If a var
+> is **omitted** from `.env`, the script `:=` fallback applies — e.g. dropping
+> `OPENVPN_HOST_NETWORK` falls back to `192.168.0.0` and `OPENVPN_NETWORK` to
+> `192.168.1.0`. The Dockerfile no longer bakes in any of these (it previously pinned
+> `OPENVPN_HOST_NETWORK`), so config now has a single source of truth: `.env`.
 
 ### pfSense peer
 
-| Var | Default | `docker-compose.yml` | Purpose |
+| Var | Default | Example (`.env`) | Purpose |
 |-----|---------|----------------------|---------|
 | `PFSENSE_CLIENT_CN` | `pfsense-site` | `matkoland` | **Cert CN of the pfSense site client.** Must exactly match the CN used in `generate_client.sh` and the filename `init_vpn.sh` creates in `/etc/openvpn/ccd/`. This is the CN-match invariant — see [architecture.md](architecture.md). |
 | `PFSENSE_CLIENT_IP` | `<prefix>.2` | `192.168.75.2` | **Fixed tunnel IP for the pfSense site client.** `init_vpn.sh` writes it as an `ifconfig-push` next to the iroute in `ccd/$PFSENSE_CLIENT_CN`. Must be in the static range (below `OPENVPN_POOL_START`); an invalid or in-pool value is **skipped with a warning** and pfSense falls back to a dynamic lease (the iroute still works, so LAN reachability is unaffected). Unlike road-warriors, pfSense's IP is **not** set via `generate_client.sh` — that script refuses the pfSense CN. |
@@ -63,7 +67,7 @@ Changing them later does not re-issue the existing CA/server cert.
 
 ### Failover (legacy, optional)
 
-| Var | Default | `docker-compose.yml` | Purpose |
+| Var | Default | Example (`.env`) | Purpose |
 |-----|---------|----------------------|---------|
 | `SERVER_FALLBACK_PRIORITY` | `0` | `0` | Names the generated `server-<N>.conf`, `server-<N>.log`, and `server-list/server-<N>.txt`. Keep `0` for a single hub. Lower = higher priority in multi-hub `.ovpn` assembly. |
 
@@ -71,7 +75,8 @@ Changing them later does not re-issue the existing CA/server cert.
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `image` | `arturmatkowski/openvpn-server:latest` | Pulled image tag. **Mismatch:** `buildDockerImage.sh` builds `:dev`. See [deployment.md](deployment.md). |
+| `image` | `arturmatkowski/openvpn-server:${IMAGE_TAG:-latest}` | Image tag, built locally by `scripts/build.sh`. `IMAGE_TAG` is set by the deploy scripts (`dev`/`latest`); a bare `docker compose up` defaults to `:latest`. See [deployment.md](deployment.md). |
+| `env_file` | `.env` | All hub config is injected from `.env` (gitignored; template is `.env.example`). |
 | `network_mode` | `host` | Container shares host net namespace so its entrypoint can touch host iptables/sysctl. |
 | `privileged` | `true` + `cap_add: NET_ADMIN` | Lets `host_init.sh` modify host kernel/iptables. |
 | `devices` | `/dev/net/tun` | TUN device for OpenVPN. |
@@ -129,8 +134,8 @@ Notes:
 - **DNS is server-pushed, not baked into the `.ovpn`.** The `push "dhcp-option DNS
   ${VPN_DNS}"` line lives in `server.conf`, which `init_vpn.sh` **rewrites on every
   container start** (the `if [ ! -f ]` guard is deliberately commented out). So DNS is
-  *not* fixed at first run: edit `VPN_DNS` in `docker-compose.yml`, run
-  `docker compose up -d`, and the new value reaches every client on its next (re)connect
+  *not* fixed at first run: edit `VPN_DNS` in `.env`, redeploy (`docker compose up -d`),
+  and the new value reaches every client on its next (re)connect
   — **no client-cert or `.ovpn` regeneration needed.** The same is true for any other
   `server.conf`-derived setting (routes, MTU, the address pool).
 - **`ifconfig-pool START END`** reserves the dynamic range so it can't collide with

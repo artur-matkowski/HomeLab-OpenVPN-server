@@ -129,36 +129,55 @@ Has a 15-case smoke test in the repo history; re-run any time the math changes.
 (the interface the kernel would use to reach that IP). **Standalone utility — not
 invoked by any other script in this repo.** Present in the image for manual diagnostics.
 
-## `buildDockerImage.sh`
+## `scripts/build.sh` + `scripts/deploy-*.sh`
 
-`docker build -t arturmatkowski/openvpn-server:dev .` — builds the **`:dev`** tag.
-`docker-compose.yml` pulls **`:latest`**. After a local build, retag (`docker tag …:dev …:latest`)
-or edit the compose `image:` before `docker compose up` will pick up changes. See
+Host-side tooling — **not** copied into the image. All build locally on the target (no
+registry/`docker push`).
+
+- `scripts/build.sh [tag]` — `docker build -t arturmatkowski/openvpn-server:<tag> <repo-root>`
+  (default tag `latest`). Resolves the repo root from `$0`, so it runs from any cwd; the
+  build context is the repo root and the Dockerfile COPYs from `src/`.
+- `scripts/deploy-prod.sh` — checks `.env` exists, `build.sh latest`, then
+  `IMAGE_TAG=latest docker compose up -d`, then tails logs.
+- `scripts/deploy-dev.sh` — same but `:dev` (`IMAGE_TAG=dev`). Dev and prod share the
+  **same `.env`**; only the image tag differs.
+
+Because compose runs `…:${IMAGE_TAG:-latest}` and each deploy script sets `IMAGE_TAG` to
+the tag it just built, the built tag and the run tag always agree — no manual retag. See
 [deployment.md](deployment.md).
 
 ## `Dockerfile`
 
 - Base `ubuntu:22.04` (amd64 — targeted at an Intel N100).
 - Installs `openvpn`, `easy-rsa`, `iptables`, `ca-certificates`.
-- `ENV EASYRSA=/usr/share/easy-rsa`, `ENV EASYRSA_PKI=/etc/openvpn/pki`,
-  **`ENV OPENVPN_HOST_NETWORK=192.168.74.0`** (this baked-in value overrides the
-  script's `:=192.168.0.0` default — see [configuration.md](configuration.md)).
+- `ENV EASYRSA=/usr/share/easy-rsa`, `ENV EASYRSA_PKI=/etc/openvpn/pki`. **No config
+  ENVs** — `OPENVPN_HOST_NETWORK` is no longer baked in; all config comes from `.env`
+  (see [configuration.md](configuration.md)).
 - Symlinks `/usr/share/easy-rsa → /etc/openvpn/easy-rsa`.
-- Copies `init.sh`→`/init.sh`, `init_vpn.sh`→`/init_vpn.sh`, and
-  `generate_client.sh`/`host_init.sh`/`get_interface.sh`→`/usr/local/bin/` (on `PATH`,
-  so they're callable bare via `docker exec`). `chmod +x` all of them.
-- Copies `lib_net.sh`→`/usr/local/lib/lib_net.sh` (sourced, so no `chmod +x` needed).
+- Copies from `src/` (the COPY **sources** are under `src/`; the in-container
+  **destinations** are unchanged): `src/init.sh`→`/init.sh`, `src/init_vpn.sh`→`/init_vpn.sh`,
+  and `src/{generate_client,host_init,get_interface}.sh`→`/usr/local/bin/` (on `PATH`, so
+  callable bare via `docker exec`). `chmod +x` all of them.
+- Copies `src/lib_net.sh`→`/usr/local/lib/lib_net.sh` (sourced, so no `chmod +x` needed).
 - `ENTRYPOINT ["/init.sh"]`.
+- A `.dockerignore` keeps `docs/`, `scripts/`, `.env`, and `*.md` out of the build context.
 
 ## `docker-compose.yml`
 
 Single service `openvpn-hub`. Host networking, privileged, `/dev/net/tun`,
 `restart: unless-stopped`, `tty`/`stdin_open`, `/opt/openvpn:/etc/openvpn` bind mount,
-and the env block. Full flag-by-flag rationale: [configuration.md](configuration.md).
+`image: …:${IMAGE_TAG:-latest}`, and `env_file: .env` (all config injected from `.env`).
+Full flag-by-flag rationale: [configuration.md](configuration.md).
+
+## `.env` / `.env.example`
+
+`.env` (gitignored) is the single source of truth for all hub config, injected into the
+container via compose `env_file`. `.env.example` is the committed, documented template —
+`cp .env.example .env` and edit. See [configuration.md](configuration.md) for the var
+reference.
 
 ## Repo drift to be aware of
 
-- **`:dev` vs `:latest`** image-tag mismatch (above).
 - **`management 127.0.0.1 5555`** in `server.conf` expects an openvpn-monitor sidecar
   that is **not** defined in compose.
 - **No `openvpn-host-init.service`** systemd unit exists; host setup runs from the

@@ -1,0 +1,2 @@
+# Local, machine-specific configuration. Use .env.example as the template.
+.env

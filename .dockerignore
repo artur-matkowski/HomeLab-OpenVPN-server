@@ -1,0 +1,11 @@
+# Keep the build context lean: the image only needs src/ + the Dockerfile.
+# Critically, keep .env out of the build context so config never leaks into the image.
+.env
+.env.example
+.git
+.gitignore
+.dockerignore
+.claude
+docs
+scripts
+*.md

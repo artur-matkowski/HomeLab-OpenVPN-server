@@ -1,8 +1,6 @@
 # Use an amd64 Ubuntu base image (Intel N100)
 FROM ubuntu:22.04
 
-ENV OPENVPN_HOST_NETWORK=192.168.74.0
-
 # Install necessary packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -20,14 +18,14 @@ ENV EASYRSA_PKI=/etc/openvpn/pki
 RUN mkdir -p /etc/openvpn/pki && \
     ln -s /usr/share/easy-rsa /etc/openvpn/easy-rsa
 
-# Copy initialization scripts (we'll create these next)
-COPY init.sh /init.sh
-COPY generate_client.sh /usr/local/bin/generate_client.sh
-COPY host_init.sh /usr/local/bin/host_init.sh
-COPY init_vpn.sh /init_vpn.sh
-COPY get_interface.sh /usr/local/bin/get_interface.sh
+# Copy initialization scripts (sources live under src/; destinations unchanged)
+COPY src/init.sh /init.sh
+COPY src/generate_client.sh /usr/local/bin/generate_client.sh
+COPY src/host_init.sh /usr/local/bin/host_init.sh
+COPY src/init_vpn.sh /init_vpn.sh
+COPY src/get_interface.sh /usr/local/bin/get_interface.sh
 # Shared IPv4 helpers, sourced (not executed) by init_vpn.sh + generate_client.sh
-COPY lib_net.sh /usr/local/lib/lib_net.sh
+COPY src/lib_net.sh /usr/local/lib/lib_net.sh
 
 # Make scripts executable
 RUN chmod +x /init.sh /usr/local/bin/generate_client.sh

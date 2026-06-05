@@ -14,11 +14,12 @@ no per-host routing.
 
 ```bash
 git clone <this-repo> && cd <this-repo>
-# Edit docker-compose.yml: set SERVER_ADDRESS, VPN_DNS, and PFSENSE_CLIENT_CN.
-./buildDockerImage.sh          # builds :dev — see docs/deployment.md re: image tag
-docker compose up -d
-docker compose logs -f openvpn-hub
+cp .env.example .env
+# Edit .env: set SERVER_ADDRESS, VPN_DNS, and PFSENSE_CLIENT_CN (at minimum).
+./scripts/deploy-prod.sh       # builds :latest locally + docker compose up -d + tails logs
 ```
+
+For a throwaway test build (`:dev` tag, same `.env`) use `./scripts/deploy-dev.sh`.
 
 Then generate client profiles:
 

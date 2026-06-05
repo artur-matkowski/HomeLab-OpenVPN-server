@@ -15,7 +15,7 @@ docker exec openvpn-hub grep "Common Name" /etc/openvpn/server-0.log
 ```
 
 All three must show the same string. If they differ:
-1. Fix `PFSENSE_CLIENT_CN` in `docker-compose.yml`; `docker compose up -d openvpn-hub`.
+1. Fix `PFSENSE_CLIENT_CN` in `.env`; `docker compose up -d openvpn-hub` (or re-run a deploy script).
 2. On pfSense, `Status → OpenVPN → Restart this client` to re-trigger the CCD lookup.
 
 Confirm the fix: `server-0.log`'s `ROUTING TABLE` now lists `192.168.74.0/24,<CN>,…`.
@@ -106,5 +106,7 @@ and recreate if needed — see [operations.md](operations.md) "Confirm deployed 
 
 ## Image changes don't take effect after a rebuild
 
-`buildDockerImage.sh` builds `:dev`; compose runs `:latest`. Retag or repoint the compose
-`image:` — see [deployment.md](deployment.md).
+The deploy scripts build and run the **same** tag (`scripts/deploy-prod.sh` → `:latest`,
+`scripts/deploy-dev.sh` → `:dev`), so a rebuild is normally picked up automatically. If
+you ran `docker compose up` by hand with a stale `IMAGE_TAG`, re-run the matching deploy
+script — see [deployment.md](deployment.md).

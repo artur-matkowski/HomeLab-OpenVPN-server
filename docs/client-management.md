@@ -6,7 +6,7 @@ is [pfsense-setup.md](pfsense-setup.md).
 
 ## pfSense site client (generate once)
 
-The CN you pass **must equal `PFSENSE_CLIENT_CN`** in `docker-compose.yml` — this is the
+The CN you pass **must equal `PFSENSE_CLIENT_CN`** in `.env` — this is the
 CN-match invariant (see [architecture.md](architecture.md)). With the default
 `PFSENSE_CLIENT_CN=matkoland`:
 
@@ -17,7 +17,7 @@ docker cp openvpn-hub:/etc/openvpn/clients/matkoland.ovpn ./
 
 Then import its four inline blocks into pfSense per [pfsense-setup.md](pfsense-setup.md).
 Do **not** pass an IP here — pfSense's fixed tunnel IP comes from `PFSENSE_CLIENT_IP` in
-`docker-compose.yml` (default `192.168.75.2`), written into `ccd/$PFSENSE_CLIENT_CN`
+`.env` (default `192.168.75.2`), written into `ccd/$PFSENSE_CLIENT_CN`
 alongside the iroute by `init_vpn.sh`.
 
 ## Road-warrior clients
@@ -85,7 +85,7 @@ Notes:
 
 DNS is **server-pushed** via `push "dhcp-option DNS ${VPN_DNS}"`, *not* baked into each
 `.ovpn`. Because `init_vpn.sh` rewrites `server.conf` on every start, changing `VPN_DNS`
-in `docker-compose.yml` and running `docker compose up -d` updates DNS for **all** clients
+in `.env` and redeploying updates DNS for **all** clients
 on their next reconnect — you do **not** regenerate or redistribute any `.ovpn`. (Trade-off:
 DNS is therefore global, not per-client.)
 

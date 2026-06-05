@@ -2,7 +2,10 @@ version: "3"
 
 services:
   openvpn-hub:
-    image: arturmatkowski/openvpn-server:latest
+    # Tag is supplied by the deploy scripts (IMAGE_TAG=dev|latest). Built locally
+    # by scripts/build.sh — no registry pull. Defaults to :latest for a bare
+    # `docker compose up`.
+    image: arturmatkowski/openvpn-server:${IMAGE_TAG:-latest}
     container_name: openvpn-hub
     network_mode: "host"
     cap_add:
@@ -13,35 +16,10 @@ services:
     privileged: true
     tty: true
     stdin_open: true
-    environment:
-      - SERVER_FALLBACK_PRIORITY=0
-      - SERVER_ADDRESS=myHetznerFqdn
-      - SERVER_LISTENING_PORT=1194
-      - VPN_DNS=192.168.74.200
-      - OPENVPN_PROTO=udp
-      - OPENVPN_COUNTRY=US
-      - OPENVPN_PROVINCE=State
-      - OPENVPN_CITY=City
-      - OPENVPN_ORG=MyVPN
-      - OPENVPN_EMAIL=admin@example.com
-      - OPENVPN_OU=MyVPN_Unit
-      - OPENVPN_NETWORK=192.168.75.0
-      - OPENVPN_HOST_NETWORK=192.168.74.0
-      # Dynamic-address pool. Clients WITHOUT a hardcoded IP are leased from
-      # this range; everything below POOL_START (.2-.127 here, the hub owns .1)
-      # is the static range for `generate_client.sh <name> <ip>` pins. Keeping
-      # the two ranges disjoint stops a dynamic client from grabbing an offline
-      # static client's address. Edit + `docker compose up -d` to re-apply.
-      - OPENVPN_POOL_START=192.168.75.128
-      - OPENVPN_POOL_END=192.168.75.254
-      # Must EXACTLY match the CN of the cert pfSense connects with.
-      # The CCD file at /etc/openvpn/ccd/<this value> carries the iroute that
-      # binds the LAN subnet to the pfSense peer. CN mismatch = no LAN reachability.
-      - PFSENSE_CLIENT_CN=matkoland
-      # Fixed tunnel IP for the pfSense site client (must be in the static
-      # range, i.e. below OPENVPN_POOL_START). init_vpn.sh writes this as an
-      # `ifconfig-push` next to the iroute in ccd/<PFSENSE_CLIENT_CN>. Leave a
-      # bad/in-pool value and pfSense falls back to a dynamic lease (logged).
-      - PFSENSE_CLIENT_IP=192.168.75.2
+    # All hub configuration lives in .env (gitignored; see .env.example for the
+    # documented reference). Injected into the container, where the in-container
+    # scripts read it. Edit .env + redeploy to re-apply.
+    env_file:
+      - .env
     volumes:
       - /opt/openvpn:/etc/openvpn

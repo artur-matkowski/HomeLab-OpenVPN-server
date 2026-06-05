@@ -105,6 +105,7 @@ ca   /etc/openvpn/pki/ca.crt
 cert /etc/openvpn/pki/issued/${SERVER_ADDRESS}.crt
 key  /etc/openvpn/pki/private/${SERVER_ADDRESS}.key
 dh   /etc/openvpn/pki/dh.pem
+crl-verify /etc/openvpn/crl.pem            # revocation list (emitted only if present)
 auth SHA256                                # control-channel digest (tls-auth triad)
 tls-auth /etc/openvpn/ta.key 0             # hub direction 0; clients use 1
 topology subnet
@@ -141,6 +142,13 @@ Notes:
 - **`ifconfig-pool START END`** reserves the dynamic range so it can't collide with
   static `ifconfig-push` assignments — see the addressing note above and
   [client-management.md](client-management.md).
+- **`crl-verify /etc/openvpn/crl.pem`** enables certificate revocation. `init_vpn.sh`
+  bootstraps an (empty) CRL on every start and publishes a `0644` copy at
+  `/etc/openvpn/crl.pem` (the in-PKI `pki/crl.pem` is `0600`/`0700` and unreadable after
+  the `user nobody` privilege drop, which would otherwise break the per-connection CRL
+  re-read). The line is **emitted only when that copy exists**, so a CRL hiccup can never
+  block startup. Revoke with `revoke_client.sh` — see [client-management.md](client-management.md).
+  Existing deployments gain this automatically on their next deploy.
 - **`tun-mtu 1500` / `mssfix 1300`** were added to mitigate fragmentation/path-MTU
   issues over the tunnel. A long-running deployed container may predate this — verify
   with `docker exec openvpn-hub cat /etc/openvpn/server-0.conf`.

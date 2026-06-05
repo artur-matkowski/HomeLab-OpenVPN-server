@@ -14,6 +14,7 @@ docker compose up
               └─ exec openvpn --config /etc/openvpn/server-0.conf
 
 generate_client.sh <name>          # on demand via `docker exec -it`; prompts for static IP
+revoke_client.sh <name> [-f]       # on demand; revoke cert + refresh CRL + cleanup
 get_interface.sh <ip>              # standalone helper, not called by anything else
 ```
 
@@ -38,20 +39,27 @@ Responsibilities, in order:
    `build-server-full "$SERVER_ADDRESS" nopass` (server cert CN = `SERVER_ADDRESS`).
    Copies `ca.crt`, `ca.key`, the server `.crt`/`.key`, `dh.pem`, and `ta.key` into
    `/etc/openvpn/`.
-3. Writes `/etc/openvpn/server-list/server-${PRIORITY}.txt` = `"$SERVER_ADDRESS $PORT"`
+3. **CRL bootstrap (revocation support):** if `pki/ca.crt` exists, generate `pki/crl.pem`
+   when missing (`easyrsa gen-crl`) and publish a `0644` copy to `/etc/openvpn/crl.pem`.
+   The published copy is what the dropped-privilege (`user nobody`) server re-reads on each
+   new connection — `pki/crl.pem` (`0600`) under `pki/` (`0700`) is unreadable post-drop.
+   All steps non-fatal (a CRL failure must not stop the hub). Sets `CRL_DIRECTIVE` to the
+   `crl-verify …` line **only if** the published copy exists. See `revoke_client.sh`.
+4. Writes `/etc/openvpn/server-list/server-${PRIORITY}.txt` = `"$SERVER_ADDRESS $PORT"`
    (consumed later by `generate_client.sh`).
-4. **Always rewrites** `/etc/openvpn/server-${PRIORITY}.conf` (the `if [ ! -f ]` guard
+5. **Always rewrites** `/etc/openvpn/server-${PRIORITY}.conf` (the `if [ ! -f ]` guard
    is commented out on purpose, so env-var changes take effect on restart). Includes
    `ifconfig-pool $OPENVPN_POOL_START $OPENVPN_POOL_END` — the dynamic range, reserved
-   so it never overlaps static `ifconfig-push` pins. See the full emitted config in
+   so it never overlaps static `ifconfig-push` pins — and `${CRL_DIRECTIVE}` (the
+   `crl-verify` line, blank when no CRL). See the full emitted config in
    [configuration.md](configuration.md).
-5. Rewrites `/etc/openvpn/ccd/$PFSENSE_CLIENT_CN` with the `iroute` (CN-match invariant)
+6. Rewrites `/etc/openvpn/ccd/$PFSENSE_CLIENT_CN` with the `iroute` (CN-match invariant)
    **and**, when `PFSENSE_CLIENT_IP` is valid and in the static range, an
    `ifconfig-push $PFSENSE_CLIENT_IP $OPENVPN_NETMASK` to pin pfSense's tunnel IP. An
    invalid/in-pool value is logged to stderr and skipped (pfSense → dynamic lease; the
    iroute still applies). This file is fully owned by `init_vpn.sh`; `generate_client.sh`
    refuses to write it.
-6. `exec openvpn --config /etc/openvpn/server-${PRIORITY}.conf`.
+7. `exec openvpn --config /etc/openvpn/server-${PRIORITY}.conf`.
 
 Gotchas / notes:
 - `set -e` + `set -x` (verbose — every line echoed to container logs).
@@ -107,6 +115,25 @@ TTY**). Steps:
 
 `set -e` + `set -x`. Detail and the produced `.ovpn` layout: [client-management.md](client-management.md).
 
+## `revoke_client.sh` — revoke a client cert + refresh the CRL
+
+Run via `docker exec [-it] openvpn-hub revoke_client.sh <name> [-f|--force]`. Counterpart
+to `generate_client.sh`. Steps:
+1. Parses `<name>` and an optional `-f`/`--force` (skip confirmation).
+2. Looks up the CN in `pki/index.txt`: a `V` line → revoke it; only an `R` line → already
+   revoked (refresh CRL + clean up only); neither → error listing the known CNs.
+3. **Confirmation:** prompts unless `-f`; errors if stdin isn't a TTY and `-f` is absent.
+   If the CN is `PFSENSE_CLIENT_CN`, warns that this drops the LAN tunnel.
+4. `cd /etc/openvpn/easy-rsa`, `EASYRSA_BATCH=1 ./easyrsa revoke <name>` (skipped if already
+   revoked), then `./easyrsa gen-crl`, then `install -m 0644 pki/crl.pem /etc/openvpn/crl.pem`
+   (the world-readable copy `crl-verify` enforces — see the `init_vpn.sh` CRL note).
+5. Removes `/etc/openvpn/clients/<name>.ovpn` and the static pin `/etc/openvpn/ccd/<name>`
+   (freeing the tunnel IP) — **except** for the pfSense CN, whose CCD (the iroute) is left
+   intact.
+
+Enforcement needs no restart: the server re-reads the CRL per new connection. `set -e` +
+`set -x` (toggled off around validation/prompt). Detail: [client-management.md](client-management.md).
+
 ## `lib_net.sh` — shared IPv4 helpers (sourced, not executed)
 
 Copied into the image at `/usr/local/lib/lib_net.sh` and `source`d by both `init_vpn.sh`
@@ -156,8 +183,8 @@ the tag it just built, the built tag and the run tag always agree — no manual 
 - Symlinks `/usr/share/easy-rsa → /etc/openvpn/easy-rsa`.
 - Copies from `src/` (the COPY **sources** are under `src/`; the in-container
   **destinations** are unchanged): `src/init.sh`→`/init.sh`, `src/init_vpn.sh`→`/init_vpn.sh`,
-  and `src/{generate_client,host_init,get_interface}.sh`→`/usr/local/bin/` (on `PATH`, so
-  callable bare via `docker exec`). `chmod +x` all of them.
+  and `src/{generate_client,revoke_client,host_init,get_interface}.sh`→`/usr/local/bin/`
+  (on `PATH`, so callable bare via `docker exec`). `chmod +x` all of them.
 - Copies `src/lib_net.sh`→`/usr/local/lib/lib_net.sh` (sourced, so no `chmod +x` needed).
 - `ENTRYPOINT ["/init.sh"]`.
 - A `.dockerignore` keeps `docs/`, `scripts/`, `.env`, and `*.md` out of the build context.

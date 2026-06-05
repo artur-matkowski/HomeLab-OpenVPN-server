@@ -60,9 +60,10 @@ in **`.env`** (gitignored; `.env.example` is the committed template).
 | File | Role | Detail |
 |------|------|--------|
 | `src/init.sh` | container entrypoint → runs host setup, then exec's the VPN init | `docs/code-map.md` |
-| `src/init_vpn.sh` | PKI init, writes `server-0.conf` (+`ifconfig-pool`), seeds CCD iroute + pfSense IP pin, exec's openvpn | `docs/code-map.md` |
+| `src/init_vpn.sh` | PKI init, writes `server-0.conf` (+`ifconfig-pool`, `crl-verify`), bootstraps/publishes CRL, seeds CCD iroute + pfSense IP pin, exec's openvpn | `docs/code-map.md` |
 | `src/host_init.sh` | host-namespace: `ip_forward` + `DOCKER-USER` tun↔tun ACCEPT | `docs/code-map.md` |
 | `src/generate_client.sh` | build client cert + assemble `.ovpn` (multi-remote); **interactive** static-IP pin via CCD | `docs/client-management.md` |
+| `src/revoke_client.sh` | revoke a client cert, refresh+publish the CRL, drop its `.ovpn`+CCD pin; pfSense-guarded | `docs/client-management.md` |
 | `src/lib_net.sh` | shared IPv4 helpers, sourced by `init_vpn.sh` + `generate_client.sh` | `docs/code-map.md` |
 | `src/get_interface.sh` | standalone helper: IP → egress iface (unused by other scripts) | `docs/code-map.md` |
 | `scripts/build.sh` | `build.sh [tag]` → `docker build … :<tag>` (default `latest`); context = repo root | `docs/deployment.md` |

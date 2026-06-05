@@ -70,6 +70,31 @@ if [ ! -f "/etc/openvpn/pki/ca.crt" ]; then
     cp /etc/openvpn/ta.key /etc/openvpn/
 fi
 
+# Ensure an enforceable CRL exists (revocation support; see revoke_client.sh).
+# Bootstrap an (empty) CRL on first run and on existing deployments that predate
+# revocation support, then publish a world-readable copy that the dropped-
+# privilege (user nobody) openvpn process can re-read on every new connection
+# (pki/crl.pem is 0600 root and pki/ is 0700, so the copy under /etc/openvpn is
+# the only path nobody can read). All non-fatal: a CRL hiccup must not stop the
+# hub — if the published copy is absent, crl-verify is simply omitted below.
+if [ -f /etc/openvpn/pki/ca.crt ]; then
+    if [ ! -f /etc/openvpn/pki/crl.pem ]; then
+        ( cd /etc/openvpn/easy-rsa && EASYRSA_BATCH=1 ./easyrsa gen-crl ) \
+            || echo "WARNING: could not generate CRL; revocation will be disabled." >&2
+    fi
+    if [ -f /etc/openvpn/pki/crl.pem ]; then
+        install -m 0644 /etc/openvpn/pki/crl.pem /etc/openvpn/crl.pem \
+            || echo "WARNING: could not publish /etc/openvpn/crl.pem." >&2
+    fi
+fi
+
+# Emit crl-verify only when the published CRL exists, so a PKI without one can
+# never break server startup.
+CRL_DIRECTIVE=""
+if [ -f /etc/openvpn/crl.pem ]; then
+    CRL_DIRECTIVE="crl-verify /etc/openvpn/crl.pem"
+fi
+
 mkdir -p /etc/openvpn/server-list
 
 cat > /etc/openvpn/server-list/server-${SERVER_FALLBACK_PRIORITY}.txt <<EOF
@@ -88,6 +113,7 @@ ca /etc/openvpn/pki/ca.crt
 cert /etc/openvpn/pki/issued/${SERVER_ADDRESS}.crt
 key /etc/openvpn/pki/private/${SERVER_ADDRESS}.key
 dh /etc/openvpn/pki/dh.pem
+${CRL_DIRECTIVE}
 auth SHA256
 tls-auth /etc/openvpn/ta.key 0
 topology subnet

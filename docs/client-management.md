@@ -138,6 +138,32 @@ otherwise-legacy `SERVER_FALLBACK_PRIORITY` machinery (see [architecture.md](arc
 | `/etc/openvpn/ta.key` | `/opt/openvpn/ta.key` | tls-auth static key |
 | `/etc/openvpn/ccd/` | `/opt/openvpn/ccd/` | per-CN config (the pfSense `iroute`) |
 
-Revoking a client cert is **not** automated here — use easy-rsa directly inside the
-container (`cd /etc/openvpn/easy-rsa && ./easyrsa revoke <name>` + `gen-crl`, then add
-`crl-verify` to `server.conf`) if you need revocation.
+## Revoking a client
+
+`revoke_client.sh` is the counterpart to `generate_client.sh` — it revokes a cert and
+makes the revocation actually take effect:
+
+```bash
+docker exec -it openvpn-hub revoke_client.sh laptop1     # interactive confirm
+docker exec    openvpn-hub revoke_client.sh laptop1 -f   # -f/--force: no prompt
+```
+
+It (1) runs `easyrsa revoke`, (2) regenerates the CRL and publishes a world-readable copy
+at `/etc/openvpn/crl.pem` (the path `server.conf`'s `crl-verify` points at), and (3) deletes
+the client's `/etc/openvpn/clients/<name>.ovpn` and its static CCD pin, freeing the tunnel IP.
+
+Enforcement is automatic: the hub runs as `user nobody` and **re-reads the CRL on every new
+TLS connection**, so the revoked client is rejected on its next (re)connect — **no hub
+restart needed**. (This is why the CRL is published to `/etc/openvpn/crl.pem` at mode `0644`:
+`pki/crl.pem` is `0600` and `pki/` is `0700`, unreadable after the privilege drop.) To kick
+an *already-connected* session immediately, `docker compose restart openvpn-hub`.
+
+Notes:
+- **Confirmation required.** Without `-f` it prompts (needs a TTY: `-it`). With `-f` it runs
+  unattended.
+- **pfSense is guarded.** Revoking `PFSENSE_CLIENT_CN` warns first and **leaves its CCD file
+  intact** (that file holds the LAN `iroute`, owned by `init_vpn.sh`).
+- **Idempotent.** Re-running on an already-revoked CN just refreshes the CRL and cleans up.
+- **First-time enablement.** `crl-verify` is wired in by `init_vpn.sh`, which bootstraps an
+  empty CRL on start — so existing deployments gain revocation support on their next deploy
+  (see [configuration.md](configuration.md)).

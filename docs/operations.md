@@ -50,6 +50,7 @@ container; `server-0.conf` is rewritten from current env on start).
 | Task | Command |
 |------|---------|
 | Add a road-warrior | `docker exec -it openvpn-hub generate_client.sh <name>` → `docker cp …` |
+| Revoke a client | `docker exec -it openvpn-hub revoke_client.sh <name>` (refreshes CRL; effective on next connect) |
 | Recreate after env change | edit `.env`, `docker compose up -d openvpn-hub` (or re-run a deploy script) |
 | Restart in place | `docker compose restart openvpn-hub` (re-runs `host_init.sh` too) |
 | Tail VPN status | `docker exec openvpn-hub cat /etc/openvpn/server-0.log` |

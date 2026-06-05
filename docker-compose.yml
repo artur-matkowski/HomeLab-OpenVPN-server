@@ -27,9 +27,21 @@ services:
       - OPENVPN_OU=MyVPN_Unit
       - OPENVPN_NETWORK=192.168.75.0
       - OPENVPN_HOST_NETWORK=192.168.74.0
+      # Dynamic-address pool. Clients WITHOUT a hardcoded IP are leased from
+      # this range; everything below POOL_START (.2-.127 here, the hub owns .1)
+      # is the static range for `generate_client.sh <name> <ip>` pins. Keeping
+      # the two ranges disjoint stops a dynamic client from grabbing an offline
+      # static client's address. Edit + `docker compose up -d` to re-apply.
+      - OPENVPN_POOL_START=192.168.75.128
+      - OPENVPN_POOL_END=192.168.75.254
       # Must EXACTLY match the CN of the cert pfSense connects with.
       # The CCD file at /etc/openvpn/ccd/<this value> carries the iroute that
       # binds the LAN subnet to the pfSense peer. CN mismatch = no LAN reachability.
       - PFSENSE_CLIENT_CN=matkoland
+      # Fixed tunnel IP for the pfSense site client (must be in the static
+      # range, i.e. below OPENVPN_POOL_START). init_vpn.sh writes this as an
+      # `ifconfig-push` next to the iroute in ccd/<PFSENSE_CLIENT_CN>. Leave a
+      # bad/in-pool value and pfSense falls back to a dynamic lease (logged).
+      - PFSENSE_CLIENT_IP=192.168.75.2
     volumes:
       - /opt/openvpn:/etc/openvpn

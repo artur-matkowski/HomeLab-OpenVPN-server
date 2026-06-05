@@ -32,6 +32,32 @@ If absent, the entrypoint didn't finish `host_init.sh` — check `docker logs op
 for errors. `docker compose restart openvpn-hub` re-runs it. (Recall Docker's
 `FORWARD DROP` default is why this rule is mandatory — [architecture.md](architecture.md).)
 
+## A client doesn't get its hardcoded static IP (or two clients fight over one)
+
+The static pin lives in `/etc/openvpn/ccd/<name>` as `ifconfig-push <ip> <netmask>` and is
+matched by **cert CN == CCD filename**. Check, in order:
+
+```bash
+docker exec openvpn-hub cat /etc/openvpn/ccd/<name>     # the pin exists?
+docker exec openvpn-hub grep -E '^(server|ifconfig-pool) ' /etc/openvpn/server-0.conf
+```
+
+- **CCD filename ≠ cert CN** → OpenVPN never reads the file. The name passed to
+  `generate_client.sh` must equal the client's cert CN. (Same matching rule as the pfSense
+  iroute, above.)
+- **Static IP sits inside the dynamic pool** → another client may have leased it while this
+  one was offline, so the two collide. The static range is everything **below**
+  `OPENVPN_POOL_START` (`.2`–`.127` by default); the interactive prompt only accepts that
+  range, but a pin created before the `ifconfig-pool` reservation existed (or hand-edited)
+  could still overlap. Re-issue with an address in the static range, or widen the reservation.
+- **pfSense didn't move to `PFSENSE_CLIENT_IP`** → that pin is written by `init_vpn.sh`
+  only on (re)start. Run `docker compose up -d openvpn-hub`, then restart the pfSense
+  client. An invalid/in-pool `PFSENSE_CLIENT_IP` is logged as a `WARNING` in
+  `docker logs openvpn-hub` and skipped (pfSense stays on a dynamic lease).
+- **Stale `ipp.txt`** → after changing the pool boundaries, the persisted leases in
+  `/etc/openvpn/ipp.txt` can hand out now-out-of-range addresses. Deleting `ipp.txt`
+  (it is regenerated) forces clean reassignment.
+
 ## `Status → OpenVPN` says "Reconnecting; tls-error"
 
 Control-channel negotiation is failing. Check, in order:

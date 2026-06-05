@@ -22,7 +22,17 @@ script default — the `:=` default only applies when the var is otherwise unset
 | `OPENVPN_NETMASK` | `255.255.255.0` | *(unset → default)* | VPN subnet mask. |
 | `OPENVPN_HOST_NETWORK` | `192.168.0.0` *(but `Dockerfile` ENV pins `192.168.74.0`)* | `192.168.74.0` | Home LAN pushed to clients, routed, and `iroute`'d to pfSense. |
 | `OPENVPN_HOST_NETMASK` | `255.255.255.0` | *(unset → default)* | Home LAN mask. |
-| `VPN_DNS` | `8.8.4.4` | `192.168.74.200` | DNS pushed to clients (typically a LAN resolver). |
+| `VPN_DNS` | `8.8.4.4` | `192.168.74.200` | DNS pushed to clients (typically a LAN resolver). **Server-pushed, not baked into `.ovpn`** — see the DNS note below. |
+| `OPENVPN_POOL_START` | `<prefix>.128` *(prefix from `OPENVPN_NETWORK`)* | `192.168.75.128` | First address of the **dynamic** lease pool. Clients without a CCD pin get addresses from `[START, END]`. |
+| `OPENVPN_POOL_END` | `<prefix>.254` | `192.168.75.254` | Last address of the dynamic pool. Everything **below** `POOL_START` (`.2`–`.127`, since the hub owns `.1`) is the **static** range for hardcoded client IPs. |
+
+> **Static vs dynamic addressing.** The `ifconfig-pool START END` line carves the
+> subnet into a dynamic range (`.128`–`.254` by default) and a static range
+> (`.2`–`.127`). Static IPs are assigned per-client via CCD `ifconfig-push`
+> (`generate_client.sh` asks for the host octet interactively). Reserving the pool means a dynamic client can
+> never be leased an address that belongs to an offline static client — see the
+> addressing section in [architecture.md](architecture.md). The defaults derive the
+> `.` prefix from `OPENVPN_NETWORK`, so they track the configured /24 automatically.
 
 > Note: `OPENVPN_HOST_NETWORK` is set in **two** places — `Dockerfile` `ENV`
 > (`192.168.74.0`) and compose. The Dockerfile ENV means the script's own
@@ -34,6 +44,7 @@ script default — the `:=` default only applies when the var is otherwise unset
 | Var | Default | `docker-compose.yml` | Purpose |
 |-----|---------|----------------------|---------|
 | `PFSENSE_CLIENT_CN` | `pfsense-site` | `matkoland` | **Cert CN of the pfSense site client.** Must exactly match the CN used in `generate_client.sh` and the filename `init_vpn.sh` creates in `/etc/openvpn/ccd/`. This is the CN-match invariant — see [architecture.md](architecture.md). |
+| `PFSENSE_CLIENT_IP` | `<prefix>.2` | `192.168.75.2` | **Fixed tunnel IP for the pfSense site client.** `init_vpn.sh` writes it as an `ifconfig-push` next to the iroute in `ccd/$PFSENSE_CLIENT_CN`. Must be in the static range (below `OPENVPN_POOL_START`); an invalid or in-pool value is **skipped with a warning** and pfSense falls back to a dynamic lease (the iroute still works, so LAN reachability is unaffected). Unlike road-warriors, pfSense's IP is **not** set via `generate_client.sh` — that script refuses the pfSense CN. |
 
 ### Certificate Authority (easy-rsa request fields)
 
@@ -93,6 +104,7 @@ auth SHA256                                # control-channel digest (tls-auth tr
 tls-auth /etc/openvpn/ta.key 0             # hub direction 0; clients use 1
 topology subnet
 server $OPENVPN_NETWORK $OPENVPN_NETMASK   # VPN subnet, hub takes .1
+ifconfig-pool $OPENVPN_POOL_START $OPENVPN_POOL_END   # dynamic range; statics live below
 ifconfig-pool-persist ipp.txt
 client-config-dir /etc/openvpn/ccd         # enables per-CN CCD / iroute
 route ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}        # hub kernel route into tun
@@ -114,6 +126,16 @@ explicit-exit-notify 1                      # UDP-only graceful disconnect notic
 ```
 
 Notes:
+- **DNS is server-pushed, not baked into the `.ovpn`.** The `push "dhcp-option DNS
+  ${VPN_DNS}"` line lives in `server.conf`, which `init_vpn.sh` **rewrites on every
+  container start** (the `if [ ! -f ]` guard is deliberately commented out). So DNS is
+  *not* fixed at first run: edit `VPN_DNS` in `docker-compose.yml`, run
+  `docker compose up -d`, and the new value reaches every client on its next (re)connect
+  — **no client-cert or `.ovpn` regeneration needed.** The same is true for any other
+  `server.conf`-derived setting (routes, MTU, the address pool).
+- **`ifconfig-pool START END`** reserves the dynamic range so it can't collide with
+  static `ifconfig-push` assignments — see the addressing note above and
+  [client-management.md](client-management.md).
 - **`tun-mtu 1500` / `mssfix 1300`** were added to mitigate fragmentation/path-MTU
   issues over the tunnel. A long-running deployed container may predate this — verify
   with `docker exec openvpn-hub cat /etc/openvpn/server-0.conf`.

@@ -26,6 +26,8 @@ COPY generate_client.sh /usr/local/bin/generate_client.sh
 COPY host_init.sh /usr/local/bin/host_init.sh
 COPY init_vpn.sh /init_vpn.sh
 COPY get_interface.sh /usr/local/bin/get_interface.sh
+# Shared IPv4 helpers, sourced (not executed) by init_vpn.sh + generate_client.sh
+COPY lib_net.sh /usr/local/lib/lib_net.sh
 
 # Make scripts executable
 RUN chmod +x /init.sh /usr/local/bin/generate_client.sh

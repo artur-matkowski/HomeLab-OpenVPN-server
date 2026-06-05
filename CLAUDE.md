@@ -25,9 +25,14 @@ It is **infrastructure-as-scripts**, not an application: no build/test/lint suit
 ```
 
 - VPN subnet (clients): `192.168.75.0/24`. Home LAN: `192.168.74.0/24`.
+- Address split: `.2`–`.127` = **static** pins (CCD `ifconfig-push`, incl. pfSense `.2`);
+  `.128`–`.254` = **dynamic** pool (`ifconfig-pool`). Kept disjoint so a dynamic lease
+  never collides with an offline static client. See `docs/architecture.md` (Addressing).
 - The hub only **relays** between tun endpoints. The return path to the LAN goes
   *back through pfSense*, so the hub does **no NAT/MASQUERADE**.
 - Split tunnel: clients keep their own internet; only the LAN route is pushed.
+- DNS is **server-pushed** (`VPN_DNS`); `server.conf` is rewritten every start, so edit
+  env + `docker compose up -d` re-applies it — no `.ovpn` regen.
 
 ## Critical invariants (break one → silent failure)
 
@@ -50,9 +55,10 @@ It is **infrastructure-as-scripts**, not an application: no build/test/lint suit
 | File | Role | Detail |
 |------|------|--------|
 | `init.sh` | container entrypoint → runs host setup, then exec's the VPN init | `docs/code-map.md` |
-| `init_vpn.sh` | PKI init, writes `server-0.conf`, seeds CCD iroute, exec's openvpn | `docs/code-map.md` |
+| `init_vpn.sh` | PKI init, writes `server-0.conf` (+`ifconfig-pool`), seeds CCD iroute + pfSense IP pin, exec's openvpn | `docs/code-map.md` |
 | `host_init.sh` | host-namespace: `ip_forward` + `DOCKER-USER` tun↔tun ACCEPT | `docs/code-map.md` |
-| `generate_client.sh` | build client cert + assemble `.ovpn` (multi-remote) | `docs/client-management.md` |
+| `generate_client.sh` | build client cert + assemble `.ovpn` (multi-remote); **interactive** static-IP pin via CCD | `docs/client-management.md` |
+| `lib_net.sh` | shared IPv4 helpers, sourced by `init_vpn.sh` + `generate_client.sh` | `docs/code-map.md` |
 | `get_interface.sh` | standalone helper: IP → egress iface (unused by other scripts) | `docs/code-map.md` |
 | `buildDockerImage.sh` | `docker build … :dev` | `docs/deployment.md` |
 | `Dockerfile` | `ubuntu:22.04` + openvpn/easy-rsa/iptables | `docs/code-map.md` |

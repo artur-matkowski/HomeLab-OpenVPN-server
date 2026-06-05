@@ -29,6 +29,34 @@ makes the design work behind CGNAT.
 - **Home LAN** (behind pfSense): `192.168.74.0/24`.
 - The two subnets must be distinct, and distinct from any road-warrior's local LAN.
 
+## Addressing — static pins vs the dynamic pool
+
+The VPN subnet is split into two non-overlapping ranges so that "who is on which IP" is
+stable enough to write static routes against:
+
+```
+ 192.168.75.1            hub (OpenVPN server, always .1)
+ 192.168.75.2 – .127     STATIC range  — hardcoded per-client via CCD ifconfig-push
+ 192.168.75.128 – .254   DYNAMIC pool  — leased by the server (ifconfig-pool)
+```
+
+- **Static pins** come from a per-client CCD file (`ccd/<cert-CN>`) containing
+  `ifconfig-push <ip> <netmask>`. `generate_client.sh` writes it for road-warriors after
+  **interactively** asking for the host octet; `init_vpn.sh` writes pfSense's
+  (`PFSENSE_CLIENT_IP`, default `.2`) next to its iroute. The CCD filename must equal the
+  cert CN — the same matching rule as the pfSense iroute (see CN match below).
+- **The dynamic pool** is fixed by `ifconfig-pool START END` in `server.conf`.
+
+**Why reserve the pool instead of just "agreeing" to keep statics low.**
+`ifconfig-push` (static) and `ifconfig-pool` (dynamic) are *independent* allocators —
+OpenVPN does not subtract a pinned address from the pool. If a static IP also sat inside
+the pool, the server could lease it to some other client while the pinned client was
+**offline**; when the pinned client reconnected, two machines would claim one address
+(intermittent, hard-to-diagnose breakage that defeats the whole point of pinning). Making
+the ranges disjoint — enforced by `OPENVPN_POOL_START/END`, validated by
+`generate_client.sh` — removes the possibility entirely. The boundaries are tunable via
+env; the defaults derive the subnet prefix from `OPENVPN_NETWORK`.
+
 ## Routing model — follow a packet
 
 **Road-warrior → LAN host** (`192.168.75.20` → `192.168.74.200`):

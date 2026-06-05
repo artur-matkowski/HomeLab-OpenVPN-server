@@ -13,9 +13,12 @@ docker compose up
         └─ exec /init_vpn.sh                                    # PKI, server.conf, CCD
               └─ exec openvpn --config /etc/openvpn/server-0.conf
 
-generate_client.sh <name>   # run on demand via `docker exec`, independent of the above
-get_interface.sh <ip>       # standalone helper, not called by anything else
+generate_client.sh <name>          # on demand via `docker exec -it`; prompts for static IP
+get_interface.sh <ip>              # standalone helper, not called by anything else
 ```
+
+Both `init_vpn.sh` and `generate_client.sh` `source /usr/local/lib/lib_net.sh` for the
+shared IPv4 math (see `lib_net.sh` below).
 
 ## `init.sh` — container entrypoint
 
@@ -38,10 +41,16 @@ Responsibilities, in order:
 3. Writes `/etc/openvpn/server-list/server-${PRIORITY}.txt` = `"$SERVER_ADDRESS $PORT"`
    (consumed later by `generate_client.sh`).
 4. **Always rewrites** `/etc/openvpn/server-${PRIORITY}.conf` (the `if [ ! -f ]` guard
-   is commented out on purpose, so env-var changes take effect on restart). See the
-   full emitted config in [configuration.md](configuration.md).
-5. Seeds `/etc/openvpn/ccd/$PFSENSE_CLIENT_CN` with
-   `iroute $OPENVPN_HOST_NETWORK $OPENVPN_HOST_NETMASK` — the CN-match invariant.
+   is commented out on purpose, so env-var changes take effect on restart). Includes
+   `ifconfig-pool $OPENVPN_POOL_START $OPENVPN_POOL_END` — the dynamic range, reserved
+   so it never overlaps static `ifconfig-push` pins. See the full emitted config in
+   [configuration.md](configuration.md).
+5. Rewrites `/etc/openvpn/ccd/$PFSENSE_CLIENT_CN` with the `iroute` (CN-match invariant)
+   **and**, when `PFSENSE_CLIENT_IP` is valid and in the static range, an
+   `ifconfig-push $PFSENSE_CLIENT_IP $OPENVPN_NETMASK` to pin pfSense's tunnel IP. An
+   invalid/in-pool value is logged to stderr and skipped (pfSense → dynamic lease; the
+   iroute still applies). This file is fully owned by `init_vpn.sh`; `generate_client.sh`
+   refuses to write it.
 6. `exec openvpn --config /etc/openvpn/server-${PRIORITY}.conf`.
 
 Gotchas / notes:
@@ -70,19 +79,49 @@ why `DOCKER-USER` over `FORWARD` and why a blanket tun↔tun ACCEPT.
 
 ## `generate_client.sh` — client cert + `.ovpn`
 
-Run via `docker exec -it openvpn-hub generate_client.sh <name>`. Steps:
-1. Requires a `<client_name>` arg.
-2. Applies cert-request env defaults (same vars as `init_vpn.sh`).
-3. `cd /etc/openvpn/easy-rsa`, `easyrsa build-client-full "$CLIENT" nopass`
+Run via `docker exec -it openvpn-hub generate_client.sh <name>` (**interactive — needs a
+TTY**). Steps:
+1. Requires a `<client_name>` arg (no IP arg — the IP is asked interactively).
+2. Applies cert-request env defaults (same vars as `init_vpn.sh`) plus the network/pool
+   vars (`OPENVPN_NETWORK/NETMASK`, `OPENVPN_POOL_START/END`, `PFSENSE_CLIENT_CN`) it
+   needs to size the static range and validate input. These arrive through `docker exec`,
+   which inherits the container env.
+3. **Interactive IP step** (skipped for the `PFSENSE_CLIENT_CN`, whose IP is env-managed;
+   errors out if stdin is not a TTY): asks `Assign a static tunnel IP? [Y/n]` (default
+   **Yes**). On Yes it loops asking for the **host octet only**, validating each entry via
+   the `lib_net.sh` helpers — numeric, in-range, assignable (not network/broadcast/hub
+   `.1`), not in the dynamic pool, and **not already pinned to another client** (scans
+   `ccd/*`) — re-prompting until valid. Result: `CLIENT_IP` is a validated address or
+   empty (dynamic). `set +x`/`set -x` brackets this block to keep the prompts readable.
+4. `cd /etc/openvpn/easy-rsa`, `easyrsa build-client-full "$CLIENT" nopass`
    (cert CN = the client name → for pfSense this must equal `PFSENSE_CLIENT_CN`).
-4. Assembles `remote` lines from every `/etc/openvpn/server-list/server-*.txt`, sorted
+5. Assembles `remote` lines from every `/etc/openvpn/server-list/server-*.txt`, sorted
    with `sort -V` (so `2 < 10`); each file line is `"<addr> <port>"`. Errors out if no
    server-list files exist.
-5. Writes `/etc/openvpn/clients/${CLIENT}.ovpn` with inline `<ca>`, `<cert>`, `<key>`,
+6. Writes `/etc/openvpn/clients/${CLIENT}.ovpn` with inline `<ca>`, `<cert>`, `<key>`,
    `<tls-auth>` blocks, `key-direction 1`, `auth SHA256`, `cipher AES-256-CBC`, and
    `pull-filter ignore "redirect-gateway"` (split tunnel).
+7. **If a static IP was chosen,** writes `/etc/openvpn/ccd/${CLIENT}` with
+   `ifconfig-push ${CLIENT_IP} ${OPENVPN_NETMASK}` (the pin). Answering `n` leaves `ccd/`
+   untouched (dynamic client). Delete the CCD file to revert a client to dynamic.
 
 `set -e` + `set -x`. Detail and the produced `.ovpn` layout: [client-management.md](client-management.md).
+
+## `lib_net.sh` — shared IPv4 helpers (sourced, not executed)
+
+Copied into the image at `/usr/local/lib/lib_net.sh` and `source`d by both `init_vpn.sh`
+and `generate_client.sh`. Pure bash, no external commands. Single source of truth for the
+address math so the two scripts can't disagree on what a valid static IP is (drift here
+would silently hand out colliding tunnel IPs). Functions:
+
+- `ip2int <dotted-quad>` → unsigned 32-bit integer.
+- `valid_ipv4 <s>` → 0 if a well-formed dotted-quad, octets `0..255`.
+- `ip_in_subnet <ip> <network> <netmask>` → 0 if `ip` belongs to the subnet.
+- `ip_in_range <ip> <start> <end>` → 0 if `start ≤ ip ≤ end` (used for the pool test).
+- `is_assignable_host <ip> <network> <netmask>` → 0 if a usable host (not network,
+  broadcast, or the hub's `.1`).
+
+Has a 15-case smoke test in the repo history; re-run any time the math changes.
 
 ## `get_interface.sh` — IP → egress interface helper
 
@@ -108,6 +147,7 @@ or edit the compose `image:` before `docker compose up` will pick up changes. Se
 - Copies `init.sh`→`/init.sh`, `init_vpn.sh`→`/init_vpn.sh`, and
   `generate_client.sh`/`host_init.sh`/`get_interface.sh`→`/usr/local/bin/` (on `PATH`,
   so they're callable bare via `docker exec`). `chmod +x` all of them.
+- Copies `lib_net.sh`→`/usr/local/lib/lib_net.sh` (sourced, so no `chmod +x` needed).
 - `ENTRYPOINT ["/init.sh"]`.
 
 ## `docker-compose.yml`

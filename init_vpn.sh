@@ -3,6 +3,8 @@
 set -e
 set -x  # Enable verbose logging for debugging
 
+# Shared IPv4 helpers (ip2int / valid_ipv4 / is_assignable_host / ip_in_range).
+. /usr/local/lib/lib_net.sh
 
 # Optional environment variables with defaults
 : "${SERVER_ADDRESS:=internal.net}"
@@ -14,6 +16,18 @@ set -x  # Enable verbose logging for debugging
 : "${OPENVPN_HOST_NETWORK:=192.168.0.0}"
 : "${OPENVPN_HOST_NETMASK:=255.255.255.0}"
 : "${VPN_DNS:=8.8.4.4}"
+
+# Address-pool split (the subnet prefix is derived from OPENVPN_NETWORK so the
+# defaults track the configured /24). Dynamic clients are leased from
+# [POOL_START, POOL_END]; everything below POOL_START (i.e. .2 – .127 by
+# default, since the hub owns .1) is reserved for hardcoded static IPs assigned
+# via CCD `ifconfig-push`. Reserving the range here means a dynamic client can
+# never be handed an address that belongs to a (possibly offline) static client.
+_SUBNET_PREFIX="${OPENVPN_NETWORK%.*}"
+: "${OPENVPN_POOL_START:=${_SUBNET_PREFIX}.128}"
+: "${OPENVPN_POOL_END:=${_SUBNET_PREFIX}.254}"
+# Fixed tunnel IP for the pfSense site client (must be in the static range).
+: "${PFSENSE_CLIENT_IP:=${_SUBNET_PREFIX}.2}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
 : "${OPENVPN_COUNTRY:=US}"
 : "${OPENVPN_PROVINCE:=LS}"
@@ -78,6 +92,7 @@ auth SHA256
 tls-auth /etc/openvpn/ta.key 0
 topology subnet
 server $OPENVPN_NETWORK $OPENVPN_NETMASK
+ifconfig-pool $OPENVPN_POOL_START $OPENVPN_POOL_END
 ifconfig-pool-persist ipp.txt
 client-config-dir /etc/openvpn/ccd
 route ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}
@@ -102,11 +117,26 @@ explicit-exit-notify 1
 EOF
 #fi
 
-# Seed CCD entry that wires the pushed LAN subnet to the pfSense peer
+# Seed CCD entry for the pfSense peer. The `iroute` is the LAN-reachability
+# invariant (see docs/architecture.md); we additionally pin pfSense's tunnel IP
+# with `ifconfig-push` so the site client always lands on a known address. This
+# file is fully owned + rewritten by init_vpn.sh every start, so the env vars
+# below always win — generate_client.sh deliberately refuses to touch it.
 mkdir -p /etc/openvpn/ccd
-cat > /etc/openvpn/ccd/"$PFSENSE_CLIENT_CN" <<EOF
-iroute ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}
-EOF
+{
+    echo "iroute ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}"
+    if valid_ipv4 "$PFSENSE_CLIENT_IP" \
+       && is_assignable_host "$PFSENSE_CLIENT_IP" "$OPENVPN_NETWORK" "$OPENVPN_NETMASK" \
+       && ! ip_in_range "$PFSENSE_CLIENT_IP" "$OPENVPN_POOL_START" "$OPENVPN_POOL_END"; then
+        echo "ifconfig-push ${PFSENSE_CLIENT_IP} ${OPENVPN_NETMASK}"
+    else
+        # Bad/empty/in-pool value: skip the pin rather than crash the hub.
+        # pfSense then falls back to a dynamic lease (the iroute still works).
+        echo "WARNING: PFSENSE_CLIENT_IP='${PFSENSE_CLIENT_IP}' is invalid or" \
+             "inside the dynamic pool (${OPENVPN_POOL_START}-${OPENVPN_POOL_END});" \
+             "leaving pfSense on a dynamic tunnel IP." >&2
+    fi
+} > /etc/openvpn/ccd/"$PFSENSE_CLIENT_CN"
 
 # Run OpenVPN
 exec openvpn --config /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf

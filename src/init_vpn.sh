@@ -27,7 +27,7 @@ _SUBNET_PREFIX="${OPENVPN_NETWORK%.*}"
 : "${OPENVPN_POOL_START:=${_SUBNET_PREFIX}.128}"
 : "${OPENVPN_POOL_END:=${_SUBNET_PREFIX}.254}"
 # Fixed tunnel IP for the pfSense site client (must be in the static range).
-: "${PFSENSE_CLIENT_IP:=${_SUBNET_PREFIX}.2}"
+: "${INTRANET_TUNNEL_IP:=${_SUBNET_PREFIX}.2}"
 : "${OPENVPN_SERVER_CN:=MyVPN CA}"
 : "${OPENVPN_COUNTRY:=US}"
 : "${OPENVPN_PROVINCE:=LS}"
@@ -35,7 +35,7 @@ _SUBNET_PREFIX="${OPENVPN_NETWORK%.*}"
 : "${OPENVPN_ORG:=MyVPN Org}"
 : "${OPENVPN_EMAIL:=admin@example.com}"
 : "${OPENVPN_OU:=MyVPN Unit}"
-: "${PFSENSE_CLIENT_CN:=pfsense-site}"
+: "${INTRANET_PEER_CN:=pfsense-site}"
 
 # We do NOT enable IP forwarding here, that’s done on the host
 # sysctl -w net.ipv4.ip_forward=1
@@ -151,18 +151,18 @@ EOF
 mkdir -p /etc/openvpn/ccd
 {
     echo "iroute ${OPENVPN_HOST_NETWORK} ${OPENVPN_HOST_NETMASK}"
-    if valid_ipv4 "$PFSENSE_CLIENT_IP" \
-       && is_assignable_host "$PFSENSE_CLIENT_IP" "$OPENVPN_NETWORK" "$OPENVPN_NETMASK" \
-       && ! ip_in_range "$PFSENSE_CLIENT_IP" "$OPENVPN_POOL_START" "$OPENVPN_POOL_END"; then
-        echo "ifconfig-push ${PFSENSE_CLIENT_IP} ${OPENVPN_NETMASK}"
+    if valid_ipv4 "$INTRANET_TUNNEL_IP" \
+       && is_assignable_host "$INTRANET_TUNNEL_IP" "$OPENVPN_NETWORK" "$OPENVPN_NETMASK" \
+       && ! ip_in_range "$INTRANET_TUNNEL_IP" "$OPENVPN_POOL_START" "$OPENVPN_POOL_END"; then
+        echo "ifconfig-push ${INTRANET_TUNNEL_IP} ${OPENVPN_NETMASK}"
     else
         # Bad/empty/in-pool value: skip the pin rather than crash the hub.
         # pfSense then falls back to a dynamic lease (the iroute still works).
-        echo "WARNING: PFSENSE_CLIENT_IP='${PFSENSE_CLIENT_IP}' is invalid or" \
+        echo "WARNING: INTRANET_TUNNEL_IP='${INTRANET_TUNNEL_IP}' is invalid or" \
              "inside the dynamic pool (${OPENVPN_POOL_START}-${OPENVPN_POOL_END});" \
              "leaving pfSense on a dynamic tunnel IP." >&2
     fi
-} > /etc/openvpn/ccd/"$PFSENSE_CLIENT_CN"
+} > /etc/openvpn/ccd/"$INTRANET_PEER_CN"
 
 # Run OpenVPN
 exec openvpn --config /etc/openvpn/server-${SERVER_FALLBACK_PRIORITY}.conf

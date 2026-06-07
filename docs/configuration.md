@@ -47,8 +47,8 @@ columns below show the values seeded into `.env` from the previous compose block
 
 | Var | Default | Example (`.env`) | Purpose |
 |-----|---------|----------------------|---------|
-| `PFSENSE_CLIENT_CN` | `pfsense-site` | `matkoland` | **Cert CN of the pfSense site client.** Must exactly match the CN used in `generate_client.sh` and the filename `init_vpn.sh` creates in `/etc/openvpn/ccd/`. This is the CN-match invariant — see [architecture.md](architecture.md). |
-| `PFSENSE_CLIENT_IP` | `<prefix>.2` | `192.168.75.2` | **Fixed tunnel IP for the pfSense site client.** `init_vpn.sh` writes it as an `ifconfig-push` next to the iroute in `ccd/$PFSENSE_CLIENT_CN`. Must be in the static range (below `OPENVPN_POOL_START`); an invalid or in-pool value is **skipped with a warning** and pfSense falls back to a dynamic lease (the iroute still works, so LAN reachability is unaffected). Unlike road-warriors, pfSense's IP is **not** set via `generate_client.sh` — that script refuses the pfSense CN. |
+| `INTRANET_PEER_CN` | `pfsense-site` | `matkoland` | **Cert CN of the pfSense site client.** Must exactly match the CN used in `generate_client.sh` and the filename `init_vpn.sh` creates in `/etc/openvpn/ccd/`. This is the CN-match invariant — see [architecture.md](architecture.md). |
+| `INTRANET_TUNNEL_IP` | `<prefix>.2` | `192.168.75.2` | **Fixed tunnel IP for the pfSense site client.** `init_vpn.sh` writes it as an `ifconfig-push` next to the iroute in `ccd/$INTRANET_PEER_CN`. Must be in the static range (below `OPENVPN_POOL_START`); an invalid or in-pool value is **skipped with a warning** and pfSense falls back to a dynamic lease (the iroute still works, so LAN reachability is unaffected). Unlike road-warriors, pfSense's IP is **not** set via `generate_client.sh` — that script refuses the pfSense CN. |
 
 ### Certificate Authority (easy-rsa request fields)
 

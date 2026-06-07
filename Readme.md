@@ -15,7 +15,7 @@ no per-host routing.
 ```bash
 git clone <this-repo> && cd <this-repo>
 cp .env.example .env
-# Edit .env: set SERVER_ADDRESS, VPN_DNS, and PFSENSE_CLIENT_CN (at minimum).
+# Edit .env: set SERVER_ADDRESS, VPN_DNS, and INTRANET_PEER_CN (at minimum).
 ./scripts/deploy-prod.sh       # builds :latest locally + docker compose up -d + tails logs
 ```
 

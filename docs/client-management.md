@@ -6,9 +6,9 @@ is [pfsense-setup.md](pfsense-setup.md).
 
 ## pfSense site client (generate once)
 
-The CN you pass **must equal `PFSENSE_CLIENT_CN`** in `.env` — this is the
+The CN you pass **must equal `INTRANET_PEER_CN`** in `.env` — this is the
 CN-match invariant (see [architecture.md](architecture.md)). With the default
-`PFSENSE_CLIENT_CN=matkoland`:
+`INTRANET_PEER_CN=matkoland`:
 
 ```bash
 docker exec -it openvpn-hub generate_client.sh matkoland
@@ -16,8 +16,8 @@ docker cp openvpn-hub:/etc/openvpn/clients/matkoland.ovpn ./
 ```
 
 Then import its four inline blocks into pfSense per [pfsense-setup.md](pfsense-setup.md).
-Do **not** pass an IP here — pfSense's fixed tunnel IP comes from `PFSENSE_CLIENT_IP` in
-`.env` (default `192.168.75.2`), written into `ccd/$PFSENSE_CLIENT_CN`
+Do **not** pass an IP here — pfSense's fixed tunnel IP comes from `INTRANET_TUNNEL_IP` in
+`.env` (default `192.168.75.2`), written into `ccd/$INTRANET_PEER_CN`
 alongside the iroute by `init_vpn.sh`.
 
 ## Road-warrior clients
@@ -77,7 +77,7 @@ Notes:
   required (CCD is read per-connection).
 - **Needs a TTY:** because it prompts, run it with `docker exec -it`. Without a TTY it
   exits with a message instead of guessing.
-- **pfSense is special:** its tunnel IP is set by the `PFSENSE_CLIENT_IP` env, not here.
+- **pfSense is special:** its tunnel IP is set by the `INTRANET_TUNNEL_IP` env, not here.
   `generate_client.sh` skips the prompt for the pfSense CN so it can't clobber the iroute
   in that CCD file (see [configuration.md](configuration.md)).
 
@@ -161,7 +161,7 @@ an *already-connected* session immediately, `docker compose restart openvpn-hub`
 Notes:
 - **Confirmation required.** Without `-f` it prompts (needs a TTY: `-it`). With `-f` it runs
   unattended.
-- **pfSense is guarded.** Revoking `PFSENSE_CLIENT_CN` warns first and **leaves its CCD file
+- **pfSense is guarded.** Revoking `INTRANET_PEER_CN` warns first and **leaves its CCD file
   intact** (that file holds the LAN `iroute`, owned by `init_vpn.sh`).
 - **Idempotent.** Re-running on an already-revoked CN just refreshes the CRL and cleans up.
 - **First-time enablement.** `crl-verify` is wired in by `init_vpn.sh`, which bootstraps an

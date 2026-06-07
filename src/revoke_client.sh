@@ -16,14 +16,14 @@
 #      takes effect on the client's next (re)connect, no hub restart required.
 #   3. Removes the client's generated .ovpn and its static CCD pin (freeing the IP).
 #
-# The pfSense site client (PFSENSE_CLIENT_CN) is guarded: revoking it tears down
+# The pfSense site client (INTRANET_PEER_CN) is guarded: revoking it tears down
 # the LAN tunnel, and its CCD file (the iroute, owned by init_vpn.sh) is left
 # untouched. Revoking it still needs explicit confirmation / --force.
 #
 set -e
 set -x                                      # verbose for debugging (toggled off below)
 
-: "${PFSENSE_CLIENT_CN:=pfsense-site}"
+: "${INTRANET_PEER_CN:=pfsense-site}"
 
 PKI=/etc/openvpn/pki
 CRL_PUB=/etc/openvpn/crl.pem
@@ -81,7 +81,7 @@ fi
 ###############################################################################
 # 3.  Confirm (revocation is irreversible)
 ###############################################################################
-if [ "$CLIENT" = "$PFSENSE_CLIENT_CN" ]; then
+if [ "$CLIENT" = "$INTRANET_PEER_CN" ]; then
     echo "WARNING: '${CLIENT}' is the pfSense site client. Revoking it drops the LAN"
     echo "         tunnel for ALL road-warriors until pfSense gets a new certificate."
 fi
@@ -126,7 +126,7 @@ if [ -f "${CLIENTS_DIR}/${CLIENT}.ovpn" ]; then
     echo "✓ Removed ${CLIENTS_DIR}/${CLIENT}.ovpn"
 fi
 
-if [ "$CLIENT" = "$PFSENSE_CLIENT_CN" ]; then
+if [ "$CLIENT" = "$INTRANET_PEER_CN" ]; then
     echo "• Left ${CCD_DIR}/${CLIENT} in place (owned by init_vpn.sh — carries the iroute)."
 elif [ -f "${CCD_DIR}/${CLIENT}" ]; then
     rm -f "${CCD_DIR}/${CLIENT}"

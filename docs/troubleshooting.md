@@ -6,16 +6,16 @@ for healthy-state checks see [operations.md](operations.md).
 ## Tunnel is up, but road-warriors can't reach the LAN
 
 **Almost always a CN / CCD mismatch.** The pfSense cert CN must be byte-identical to the
-CCD filename and `PFSENSE_CLIENT_CN`. Verify all three on the hub:
+CCD filename and `INTRANET_PEER_CN`. Verify all three on the hub:
 
 ```bash
 docker exec openvpn-hub ls /etc/openvpn/ccd/
-docker exec openvpn-hub grep PFSENSE_CLIENT_CN /proc/1/environ | tr '\0' '\n'
+docker exec openvpn-hub grep INTRANET_PEER_CN /proc/1/environ | tr '\0' '\n'
 docker exec openvpn-hub grep "Common Name" /etc/openvpn/server-0.log
 ```
 
 All three must show the same string. If they differ:
-1. Fix `PFSENSE_CLIENT_CN` in `.env`; `docker compose up -d openvpn-hub` (or re-run a deploy script).
+1. Fix `INTRANET_PEER_CN` in `.env`; `docker compose up -d openvpn-hub` (or re-run a deploy script).
 2. On pfSense, `Status → OpenVPN → Restart this client` to re-trigger the CCD lookup.
 
 Confirm the fix: `server-0.log`'s `ROUTING TABLE` now lists `192.168.74.0/24,<CN>,…`.
@@ -50,9 +50,9 @@ docker exec openvpn-hub grep -E '^(server|ifconfig-pool) ' /etc/openvpn/server-0
   `OPENVPN_POOL_START` (`.2`–`.127` by default); the interactive prompt only accepts that
   range, but a pin created before the `ifconfig-pool` reservation existed (or hand-edited)
   could still overlap. Re-issue with an address in the static range, or widen the reservation.
-- **pfSense didn't move to `PFSENSE_CLIENT_IP`** → that pin is written by `init_vpn.sh`
+- **pfSense didn't move to `INTRANET_TUNNEL_IP`** → that pin is written by `init_vpn.sh`
   only on (re)start. Run `docker compose up -d openvpn-hub`, then restart the pfSense
-  client. An invalid/in-pool `PFSENSE_CLIENT_IP` is logged as a `WARNING` in
+  client. An invalid/in-pool `INTRANET_TUNNEL_IP` is logged as a `WARNING` in
   `docker logs openvpn-hub` and skipped (pfSense stays on a dynamic lease).
 - **Stale `ipp.txt`** → after changing the pool boundaries, the persisted leases in
   `/etc/openvpn/ipp.txt` can hand out now-out-of-range addresses. Deleting `ipp.txt`

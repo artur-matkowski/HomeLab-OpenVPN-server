@@ -8,7 +8,7 @@ Step-by-step walkthrough for configuring pfSense as a site-to-site OpenVPN **cli
 
 ## Mental model
 
-pfSense is just a regular OpenVPN client to the hub — but because it's also the LAN gateway, every LAN host transparently reaches the VPN subnet through it (no per-host static routes anywhere). The hub binds the LAN subnet to pfSense's certificate via a CCD `iroute` entry. **CN of the cert == filename in `/etc/openvpn/ccd/` on the hub == value of `PFSENSE_CLIENT_CN` env var on the hub.** All three must match exactly. (This is the CN-match invariant — see [architecture.md](architecture.md).)
+pfSense is just a regular OpenVPN client to the hub — but because it's also the LAN gateway, every LAN host transparently reaches the VPN subnet through it (no per-host static routes anywhere). The hub binds the LAN subnet to pfSense's certificate via a CCD `iroute` entry. **CN of the cert == filename in `/etc/openvpn/ccd/` on the hub == value of `INTRANET_PEER_CN` env var on the hub.** All three must match exactly. (This is the CN-match invariant — see [architecture.md](architecture.md).)
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ You should already have:
   docker exec openvpn-hub generate_client.sh matkoland
   docker cp openvpn-hub:/etc/openvpn/clients/matkoland.ovpn ./
   ```
-- The `PFSENSE_CLIENT_CN` env var on the hub set to that exact CN (see `docker-compose.yml`).
+- The `INTRANET_PEER_CN` env var on the hub set to that exact CN (see `.env`).
 - The hub reachable from pfSense's WAN at the FQDN/IP and UDP port you used in `SERVER_ADDRESS` / `SERVER_LISTENING_PORT`.
 
 ## Step 0 — Extract blobs from the `.ovpn`

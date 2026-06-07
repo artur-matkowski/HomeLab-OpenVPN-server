@@ -20,7 +20,7 @@ git clone <this-repo> && cd <this-repo>
 # 2. Create your config from the template and edit it. At minimum:
 #      SERVER_ADDRESS      -> public FQDN/IP of this VPS
 #      VPN_DNS             -> a resolver reachable over the tunnel (often a LAN host)
-#      PFSENSE_CLIENT_CN   -> the CN you will use for pfSense's cert (CN-match invariant)
+#      INTRANET_PEER_CN   -> the CN you will use for pfSense's cert (CN-match invariant)
 cp .env.example .env
 $EDITOR .env
 

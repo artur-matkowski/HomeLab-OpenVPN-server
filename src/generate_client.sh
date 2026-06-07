@@ -10,8 +10,8 @@
 #   (static) tunnel IP and, if so, for the host octet only — the network prefix
 #   is fixed by OPENVPN_NETWORK. A static IP is pinned via a CCD `ifconfig-push`
 #   so you always know who connects on which address (for static routes over the
-#   VPN). The pfSense site client is exempt: its IP is owned by PFSENSE_CLIENT_IP
-#   in docker-compose.yml, so the prompt is skipped for that CN.
+#   VPN). The pfSense site client is exempt: its IP is owned by INTRANET_TUNNEL_IP
+#   in .env, so the prompt is skipped for that CN.
 #
 set -e
 set -x                                      # verbose for debugging
@@ -48,7 +48,7 @@ fi
 _SUBNET_PREFIX="${OPENVPN_NETWORK%.*}"
 : "${OPENVPN_POOL_START:=${_SUBNET_PREFIX}.128}"
 : "${OPENVPN_POOL_END:=${_SUBNET_PREFIX}.254}"
-: "${PFSENSE_CLIENT_CN:=pfsense-site}"
+: "${INTRANET_PEER_CN:=pfsense-site}"
 
 ###############################################################################
 # 2b. Interactively decide the client's tunnel IP (static pin vs dynamic lease)
@@ -78,9 +78,9 @@ is_ip_taken() {
     return 1
 }
 
-if [[ "$CLIENT" == "$PFSENSE_CLIENT_CN" ]]; then
+if [[ "$CLIENT" == "$INTRANET_PEER_CN" ]]; then
     echo "Note: '$CLIENT' is the pfSense site client — its tunnel IP is set by"
-    echo "      PFSENSE_CLIENT_IP in docker-compose.yml. Skipping the static-IP prompt."
+    echo "      INTRANET_TUNNEL_IP in .env. Skipping the static-IP prompt."
 else
     set +x                                            # keep prompts readable
     if [ ! -t 0 ]; then

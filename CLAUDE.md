@@ -38,7 +38,7 @@ It is **infrastructure-as-scripts**, not an application: no build/test/lint suit
 ## Critical invariants (break one → silent failure)
 
 1. **CN match (3 places).** The pfSense cert CN == the filename in
-   `/etc/openvpn/ccd/<CN>` on the hub == `PFSENSE_CLIENT_CN` in `.env`.
+   `/etc/openvpn/ccd/<CN>` on the hub == `INTRANET_PEER_CN` in `.env`.
    The CCD `iroute` is the *only* thing that makes the LAN reachable through pfSense.
    Mismatch ⇒ tunnel connects, road-warriors see the VPN subnet but never the LAN.
 2. **tls-auth triad.** Control channel HMAC depends only on: `ta.key` bytes,

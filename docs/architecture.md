@@ -43,7 +43,7 @@ stable enough to write static routes against:
 - **Static pins** come from a per-client CCD file (`ccd/<cert-CN>`) containing
   `ifconfig-push <ip> <netmask>`. `generate_client.sh` writes it for road-warriors after
   **interactively** asking for the host octet; `init_vpn.sh` writes pfSense's
-  (`PFSENSE_CLIENT_IP`, default `.2`) next to its iroute. The CCD filename must equal the
+  (`INTRANET_TUNNEL_IP`, default `.2`) next to its iroute. The CCD filename must equal the
   cert CN — the same matching rule as the pfSense iroute (see CN match below).
 - **The dynamic pool** is fixed by `ifconfig-pool START END` in `server.conf`.
 
@@ -145,10 +145,10 @@ already owns that LAN directly (see [pfsense-setup.md](pfsense-setup.md)).
 The pfSense certificate's **CN** must be byte-identical in three places:
 
 ```
-pfSense cert CN  ==  /etc/openvpn/ccd/<CN> on the hub  ==  PFSENSE_CLIENT_CN env var
+pfSense cert CN  ==  /etc/openvpn/ccd/<CN> on the hub  ==  INTRANET_PEER_CN env var
 ```
 
-`init_vpn.sh` seeds `ccd/$PFSENSE_CLIENT_CN` with the `iroute`. If pfSense connects
+`init_vpn.sh` seeds `ccd/$INTRANET_PEER_CN` with the `iroute`. If pfSense connects
 with a different CN, OpenVPN finds no matching CCD file, never installs the iroute,
 and the LAN is unreachable from road-warriors even though every tunnel is "up".
 

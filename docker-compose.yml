@@ -22,4 +22,4 @@ services:
     env_file:
       - .env
     volumes:
-      - /opt/openvpn:/etc/openvpn
+      - ./openvpn-data:/etc/openvpn

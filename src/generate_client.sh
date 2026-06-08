@@ -78,6 +78,28 @@ is_ip_taken() {
     return 1
 }
 
+# list_static_pins -> print existing static pins as "IP  client", sorted by
+# address, so the operator can see what's already taken (and by whom) before
+# choosing. Reads each CCD file's first `ifconfig-push` IP; this naturally
+# includes the pfSense site client's pin too.
+list_static_pins() {
+    local f ip rows=""
+    if [ -d /etc/openvpn/ccd ]; then
+        while IFS= read -r f; do
+            ip=$(grep -oE '^[[:space:]]*ifconfig-push[[:space:]]+[0-9.]+' "$f" 2>/dev/null \
+                 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+            [ -n "$ip" ] && rows+="$(ip2int "$ip")|${ip}|$(basename "$f")"$'\n'
+        done < <(find /etc/openvpn/ccd -maxdepth 1 -type f 2>/dev/null)
+    fi
+    if [ -z "$rows" ]; then
+        echo "    (none assigned yet)"
+        return
+    fi
+    printf '%s' "$rows" | sort -t'|' -k1,1n | while IFS='|' read -r _ ip name; do
+        printf '    %-15s  %s\n' "$ip" "$name"
+    done
+}
+
 if [[ "$CLIENT" == "$INTRANET_PEER_CN" ]]; then
     echo "Note: '$CLIENT' is the pfSense site client — its tunnel IP is set by"
     echo "      INTRANET_TUNNEL_IP in .env. Skipping the static-IP prompt."
@@ -95,6 +117,9 @@ else
             echo "→ '$CLIENT' will get a dynamic IP from the pool (${OPENVPN_POOL_START}-${OPENVPN_POOL_END})."
             ;;
         *)  # default (empty) = Yes; loop until a valid, free octet is entered
+            echo "  Static range ${_SUBNET_PREFIX}.${_STATIC_MIN_OCTET}–${_SUBNET_PREFIX}.${_STATIC_MAX_OCTET} (dynamic pool ${OPENVPN_POOL_START}-${OPENVPN_POOL_END} is excluded)."
+            echo "  Currently assigned static IPs:"
+            list_static_pins
             while true; do
                 read -r -p "  Host octet for ${_SUBNET_PREFIX}.?  [${_STATIC_MIN_OCTET}-${_STATIC_MAX_OCTET}]: " _octet
                 if ! [[ "$_octet" =~ ^[0-9]{1,3}$ ]]; then

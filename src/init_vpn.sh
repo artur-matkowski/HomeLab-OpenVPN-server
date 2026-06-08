@@ -117,7 +117,7 @@ ${CRL_DIRECTIVE}
 auth SHA256
 tls-auth /etc/openvpn/ta.key 0
 topology subnet
-server $OPENVPN_NETWORK $OPENVPN_NETMASK
+server $OPENVPN_NETWORK $OPENVPN_NETMASK nopool
 ifconfig-pool $OPENVPN_POOL_START $OPENVPN_POOL_END
 ifconfig-pool-persist ipp.txt
 client-config-dir /etc/openvpn/ccd
